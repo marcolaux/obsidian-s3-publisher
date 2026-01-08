@@ -22,13 +22,13 @@ release:
   script:
     - echo "Creating release..."
     # Extract version from manifest.json. Assumes "version": "x.y.z" format.
-    - VERSION=$(grep '"version":' manifest.json | head -1 | awk -F: '{ print $2 }' | sed 's/[",]//g' | tr -d '[[:space:]]')
+    - 'VERSION=$(grep ''"version":'' manifest.json | head -1 | awk -F: ''{ print $2 }'' | sed ''s/[",]//g'' | tr -d ''[[:space:]]'')'
     - echo "Detected Version: $VERSION"
   release:
     name: "Release $VERSION"
     description: "Automatic release for version $VERSION"
     tag_name: "$VERSION"
-    ref: '$CI_COMMIT_SHA'
+    ref: "$CI_COMMIT_SHA"
     assets:
       links:
         - name: "main.js"

@@ -708,7 +708,7 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
 /* eslint-enable */
 
 function rehypeCodeBlockEnhancer() {
-	/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment */
+	/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call */
 	return (tree: any) => {
 		visit(tree, "element", (node: any, index: any, parent: any) => {
 			if (node.tagName === "pre" && node.children && node.children.length > 0) {

@@ -1,90 +1,120 @@
-# Obsidian Sample Plugin
+# Obsidian S3/MinIO Publisher
 
-This is a sample plugin for Obsidian (https://obsidian.md).
+Publish your Obsidian notes, Canvas files, and Excalidraw drawings as beautiful, static HTML to any S3-compatible object storage (MinIO, AWS S3, DigitalOcean Spaces, Cloudflare R2).
 
-This project uses TypeScript to provide type checking and documentation.
-The repo depends on the latest plugin API (obsidian.d.ts) in TypeScript Definition format, which contains TSDoc comments describing what it does.
+## Features
 
-This sample plugin demonstrates some of the basic functionality the plugin API can do.
-- Adds a ribbon icon, which shows a Notice when clicked.
-- Adds a command "Open modal (simple)" which opens a Modal.
-- Adds a plugin setting tab to the settings page.
-- Registers a global click event and output 'click' to the console.
-- Registers a global interval which logs 'setInterval' to the console.
+- **🌐 Universal S3 Support**: Works with AWS S3, MinIO, Cloudflare R2, DigitalOcean Spaces, and more.
+- **🎨 Infinite Canvas Publishing**: Full support for Obsidian Canvas.
+  - Renders nodes, edges, groups, and colors.
+  - **Interactive**: Pan, zoom-to-cursor, and drag support (D3-like controls).
+  - **Embedded Content**: Supports images and nested Markdown files within Canvas.
+- **✏️ Excalidraw Support**:
+  - **Full-Page View**: Publish `.excalidraw.md` files as zoomable, pannable interactive pages.
+  - **Interactive Embeds**: Use `![[drawing.excalidraw]]` inside notes. Embeds are **fully interactive** (pan/zoom) and responsive.
+  - **Smart Rendering**: Automatically handles light/dark mode transparency and embedded images.
+- **📝 Rich Markdown Rendering**:
+  - Supports **Core Obsidian syntax** (bold, italic, lists, blockquotes).
+  - **Images & Assets**: Automatically uploads local images and attachments to S3.
+  - **Embeds**: Recursively resolves and includes `![[Note]]` embeds.
+  - **Callouts & Tables**: Renders standard Markdown tables and callouts.
+  - **Dark Mode**: Respects system preferences for light/dark themes.
+- **🔐 Private Link Generation**: Generates obfuscated UUID paths (e.g., `.../share_id/index.html`) for secure sharing.
+- **🛠️ Developer Friendly**:
+  - **Test Connection**: Verify your S3 credentials directly from settings with animated feedback.
+  - **Tabbed Settings**: Organized UI for managing connections and published files.
+  - **Smart Context Menu**:
+    - **Publish/Update**: Scans if a file is already live and toggles between "S3: Publish" and "S3: Update published note".
+    - **Safe Unpublish**: "Unpublish" option only appears for active files.
 
-## First time developing plugins?
+## Screenshots
 
-Quick starting guide for new plugin devs:
+### 1. Published Canvas
 
-- Check if [someone already developed a plugin for what you want](https://obsidian.md/plugins)! There might be an existing plugin similar enough that you can partner up with.
-- Make a copy of this repo as a template with the "Use this template" button (login to GitHub if you don't see it).
-- Clone your repo to a local development folder. For convenience, you can place this folder in your `.obsidian/plugins/your-plugin-name` folder.
-- Install NodeJS, then run `npm i` in the command line under your repo folder.
-- Run `npm run dev` to compile your plugin from `main.ts` to `main.js`.
-- Make changes to `main.ts` (or create new `.ts` files). Those changes should be automatically compiled into `main.js`.
-- Reload Obsidian to load the new version of your plugin.
-- Enable plugin in settings window.
-- For updates to the Obsidian API run `npm update` in the command line under your repo folder.
+_A complex Obsidian Canvas rendered with full interactivity and styling._
 
-## Releasing new releases
+<!-- Add screenshot of published canvas here -->
 
-- Update your `manifest.json` with your new version number, such as `1.0.1`, and the minimum Obsidian version required for your latest release.
-- Update your `versions.json` file with `"new-plugin-version": "minimum-obsidian-version"` so older versions of Obsidian can download an older version of your plugin that's compatible.
-- Create new GitHub release using your new version number as the "Tag version". Use the exact version number, don't include a prefix `v`. See here for an example: https://github.com/obsidianmd/obsidian-sample-plugin/releases
-- Upload the files `manifest.json`, `main.js`, `styles.css` as binary attachments. Note: The manifest.json file must be in two places, first the root path of your repository and also in the release.
-- Publish the release.
+### 2. Interactive Excalidraw Embed
 
-> You can simplify the version bump process by running `npm version patch`, `npm version minor` or `npm version major` after updating `minAppVersion` manually in `manifest.json`.
-> The command will bump version in `manifest.json` and `package.json`, and add the entry for the new version to `versions.json`
+_Excalidraw drawings embedded in notes retain full pan/zoom capabilities w/ responsive scaling._
 
-## Adding your plugin to the community plugin list
+<!-- Add screenshot of excalidraw here -->
 
-- Check the [plugin guidelines](https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines).
-- Publish an initial version.
-- Make sure you have a `README.md` file in the root of your repo.
-- Make a pull request at https://github.com/obsidianmd/obsidian-releases to add your plugin.
+### 3. Published Note
 
-## How to use
+_Clean, readable Markdown rendering with dark mode support._
 
-- Clone this repo.
-- Make sure your NodeJS is at least v16 (`node --version`).
-- `npm i` or `yarn` to install dependencies.
-- `npm run dev` to start compilation in watch mode.
+<!-- Add screenshot of published note here -->
 
-## Manually installing the plugin
+## Installation
 
-- Copy over `main.js`, `styles.css`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/your-plugin-id/`.
+1. Install the **Obsidian S3 Publisher** plugin (Marketplace or Manual).
+2. Enable the plugin in settings.
 
-## Improve code quality with eslint
-- [ESLint](https://eslint.org/) is a tool that analyzes your code to quickly find problems. You can run ESLint against your plugin to find common bugs and ways to improve your code. 
-- This project already has eslint preconfigured, you can invoke a check by running`npm run lint`
-- Together with a custom eslint [plugin](https://github.com/obsidianmd/eslint-plugin) for Obsidan specific code guidelines.
-- A GitHub action is preconfigured to automatically lint every commit on all branches.
+## Configuration
 
-## Funding URL
+Navigate to **Settings > S3 Publisher** to configure your provider.
 
-You can include funding URLs where people who use your plugin can financially support it.
+| Setting        | Description                                                                                                                   |
+| :------------- | :---------------------------------------------------------------------------------------------------------------------------- |
+| **Endpoint**   | Your S3 API URL (e.g., `https://s3.amazonaws.com` or `http://localhost:9000`)                                                 |
+| **Region**     | Bucket region (e.g., `us-east-1` or `auto` for some providers)                                                                |
+| **Bucket**     | The name of your bucket (must store content publicly or generate presigned URLs - this plugin uses public read ACL currently) |
+| **Access Key** | Your S3 Access Key ID                                                                                                         |
+| **Secret Key** | Your S3 Secret Access Key                                                                                                     |
+| **Public URL** | (Optional) Custom domain for sharing links (e.g., `https://notes.mysite.com`)                                                 |
 
-The simple way is to set the `fundingUrl` field to your link in your `manifest.json` file:
+> **Tip**: Use the **"Test Connection"** button to verify your settings before publishing!
 
-```json
-{
-    "fundingUrl": "https://buymeacoffee.com"
-}
+### MinIO Quick Start (Docker)
+
+Run your own private S3 cloud in seconds:
+
+```bash
+docker run -p 9000:9000 -p 9001:9001 \
+  -e "MINIO_ROOT_USER=admin" \
+  -e "MINIO_ROOT_PASSWORD=password" \
+  quay.io/minio/minio server /data --console-address ":9001"
 ```
 
-If you have multiple URLs, you can also do:
+- **Endpoint**: `http://localhost:9000`
+- **Access/Secret**: `admin` / `password`
+- **Bucket**: Create a bucket (e.g., `notes`) and set its policy to **Public Read**.
 
-```json
-{
-    "fundingUrl": {
-        "Buy Me a Coffee": "https://buymeacoffee.com",
-        "GitHub Sponsor": "https://github.com/sponsors",
-        "Patreon": "https://www.patreon.com/"
-    }
-}
-```
+## Usage
 
-## API Documentation
+### Publishing
 
-See https://docs.obsidian.md
+1. Open a **Note (.md)**, **Canvas (.canvas)**, or **Excalidraw** file.
+2. Open Command Palette (`Cmd/Ctrl+P`) -> `S3 Publisher: Publish`.
+3. **Or** Right-click the file in the explorer -> `S3: Publish Note` (or `Update published note`).
+4. Wait for the "Published!" toast. The link is copied to your clipboard.
+
+### Managing Files
+
+- **View Online**: Right-click a published file -> `S3: View Online`.
+- **Unpublish**: Right-click -> `S3: Unpublish Note` to remove it from the server.
+- **Settings**: Go to the **Published Files** tab in settings to see a full list of all active shares.
+
+## Advanced
+
+### Canvas & Excalidraw Compiler
+
+The plugin includes custom compilers for visual formats:
+
+- **Canvas**: Converts JSON -> Interactive HTML5/SVG with Cubic Bézier curves.
+- **Excalidraw**: Uses lightweight wrappers to render compressed Excalidraw JSON -> SVG.
+- **Zero Runtime Dependencies**: The generated HTML is standalone; it does **not** fetch large JS bundles from CDNs.
+
+### Styling
+
+Styles are injected automatically.
+
+- **Markdown**: Uses a clean, GitHub-like typography.
+- **Colors**: Mapped to standard Obsidian colors.
+- **Tags**: Renders `#tags` with pill styling.
+
+---
+
+_Built for the Obsidian Community._

@@ -21,9 +21,13 @@ release:
   image: registry.gitlab.com/gitlab-org/release-cli:latest
   script:
     - echo "Creating release..."
-    # Extract version from manifest.json. Assumes "version": "x.y.z" format.
-    - 'VERSION=$(grep ''"version":'' manifest.json | head -1 | awk -F: ''{ print $2 }'' | sed ''s/[",]//g'' | tr -d ''[[:space:]]'')'
-    - echo "Detected Version: $VERSION"
+    - |
+      VERSION=$(grep '"version":' manifest.json | head -1 | awk -F: '{ print $2 }' | sed 's/[",]//g' | tr -d '[[:space:]]')
+      echo "VERSION=$VERSION" >> build.env
+      echo "Detected Version: $VERSION"
+  artifacts:
+    reports:
+      dotenv: build.env
   release:
     name: "Release $VERSION"
     description: "Automatic release for version $VERSION"

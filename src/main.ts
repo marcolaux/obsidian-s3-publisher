@@ -262,7 +262,7 @@ export default class S3PublishPlugin extends Plugin {
 					}
 				}
 
-				// 2. Embeds
+				// 2. Embeds (Wikilinks)
 				const embeds = cache?.embeds;
 				if (embeds) {
 					for (const embed of embeds) {
@@ -285,6 +285,48 @@ export default class S3PublishPlugin extends Plugin {
 							}
 						}
 					}
+				}
+
+				// 3. Standard Markdown Images ![alt](path) and Links [text](path)
+				try {
+					const fileContent = await this.app.vault.read(f);
+					const imageRegex = /!\[.*?\]\((.*?)\)/g;
+					const linkRegex = /\[.*?\]\((.*?)\)/g;
+
+					const queries = [imageRegex, linkRegex];
+
+					for (const regex of queries) {
+						const matches = fileContent.matchAll(regex);
+						for (const match of matches) {
+							const linkText = match[1];
+							if (
+								!linkText ||
+								linkText.startsWith("http") ||
+								linkText.startsWith("mailto:") ||
+								linkText.startsWith("#")
+							)
+								continue;
+
+							const cleanLink =
+								linkText.split("#")[0]?.split("?")[0] || linkText;
+
+							const linkedFile = this.app.metadataCache.getFirstLinkpathDest(
+								cleanLink,
+								f.path
+							);
+
+							if (linkedFile instanceof TFile) {
+								if (linkedFile.extension !== "md") {
+									if (!assets.some((a) => a.path === linkedFile.name)) {
+										const ab = await this.app.vault.readBinary(linkedFile);
+										assets.push({ path: linkedFile.name, content: ab });
+									}
+								}
+							}
+						}
+					}
+				} catch (e) {
+					console.error("Error scanning for standard links/images", e);
 				}
 			};
 

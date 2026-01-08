@@ -167,6 +167,7 @@ export class MarkdownCompiler {
 				aliasDivider: "|",
 			})
 			.use(remarkExcalidraw, { app: this.app })
+			.use(remarkRelativeLinkNormalizer)
 			// Switch to remark-rehype -> rehype-raw -> rehype-stringify for HTML handling
 			// @ts-ignore
 			.use(remarkRehype, { allowDangerousHtml: true })
@@ -768,6 +769,82 @@ function rehypeCodeBlockEnhancer() {
 				}
 			}
 		});
+	};
+	/* eslint-enable */
+}
+
+function remarkRelativeLinkNormalizer() {
+	/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment */
+	return (tree: any) => {
+		const visitor = (node: any) => {
+			if (
+				node.url &&
+				!node.url.startsWith("http") &&
+				!node.url.startsWith("mailto:") &&
+				!node.url.startsWith("#")
+			) {
+				// Flatten path to just filename
+				const cleanUrl = node.url.split(/[?#]/)[0];
+				if (cleanUrl) {
+					const parts = cleanUrl.split("/");
+					const filename = parts[parts.length - 1];
+					node.url = filename;
+
+					// Handle Embed Transformation for "image" nodes (which syntax ![]() parses to)
+					// If the extension is not an image, convert to HTML embed
+					if (node.type === "image") {
+						const ext = filename.split(".").pop()?.toLowerCase();
+						const altText = node.alt || filename;
+						let replacement = "";
+
+						switch (ext) {
+							case "png":
+							case "jpg":
+							case "jpeg":
+							case "gif":
+							case "svg":
+							case "webp":
+								// Normal image, do nothing (url already flattened)
+								break;
+							case "mp4":
+							case "webm":
+							case "ogv":
+							case "mov":
+								replacement = `<video controls src="${filename}" style="max-width: 100%;"><a href="${filename}">Download Video</a></video>`;
+								break;
+							case "mp3":
+							case "wav":
+							case "ogg":
+							case "m4a":
+								replacement = `<audio controls src="${filename}"></audio>`;
+								break;
+							case "pdf":
+								replacement = `<embed src="${filename}" type="application/pdf" class="embedded-pdf" style="width: 100%; height: 800px; min-height: 800px;" />`;
+								break;
+							default:
+								// Fallback for other files (zip, doc, etc) -> Download Link
+								// ![]() syntax for non-media usually implies embedding, but if we can't embed, link it?
+								// Or leave it valid so user can click?
+								// Converting to <a> makes sense for downloads.
+								replacement = `<a href="${filename}" download class="download-link">Download ${altText}</a>`;
+								break;
+						}
+
+						if (replacement) {
+							node.type = "html";
+							node.value = replacement;
+							// Clear other image properties to be safe
+							delete node.url;
+							delete node.alt;
+							delete node.title;
+						}
+					}
+				}
+			}
+		};
+
+		visit(tree, "image", visitor);
+		visit(tree, "link", visitor);
 	};
 	/* eslint-enable */
 }

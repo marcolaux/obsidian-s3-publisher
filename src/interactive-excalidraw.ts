@@ -1,4 +1,8 @@
-import { CSS_VARIABLES, SCOPED_MARKDOWN_STYLES } from "./styles";
+import {
+	CSS_VARIABLES,
+	SCOPED_MARKDOWN_STYLES,
+	EXCALIDRAW_STYLES,
+} from "./styles";
 
 /**
  * Generates the HTML/JS for an interactive Excalidraw viewer.
@@ -23,7 +27,17 @@ export function generateInteractiveExcalidrawWrapper(
 	const worldClass = `excalidraw-world-${id}`;
 
 	// CSS for the controls and wrapper
-	const styles = `
+	// Basic minification to remove newlines and extra spaces
+	const minify = (str: string) =>
+		str
+			.replace(/\/\*[\s\S]*?\*\//g, "") // Remove comments
+			.replace(/\s+/g, " ") // Collapse whitespace
+			.replace(/\s*([{}:;,])\s*/g, "$1") // Remove space around separators
+			.replace(/;}/g, "}") // Remove trailing semicolons
+			.trim();
+
+	// Minify CSS
+	const styles = minify(`
 .${containerClass} { width: 100%; height: ${isEmbed ? "600px" : "100%"}; ${
 		isEmbed
 			? "resize: vertical; overflow: hidden; border: 1px solid var(--background-modifier-border); border-radius: 8px;"
@@ -35,14 +49,16 @@ export function generateInteractiveExcalidrawWrapper(
 .${worldClass} { position: absolute; transform-origin: 0 0; background-color: var(--world-bg); box-shadow: 0 0 20px var(--node-shadow); }
 /* Controls scoped to this instance */
 .excalidraw-controls-${id} { position: absolute; bottom: 20px; right: 20px; z-index: 10; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
-.excalidraw-controls-${id} button { pointer-events: auto; width: 36px; height: 36px; border-radius: 6px; border: 1px solid var(--background-modifier-border); background: var(--interactive-normal); color: var(--text-muted); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; box-shadow: 0 2px 8px rgba(0,0,0,0.1); transition: all 0.2s ease; }
-.excalidraw-controls-${id} button:hover { background: var(--interactive-hover); color: var(--text-normal); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+.excalidraw-controls-${id} button { pointer-events: auto; width: 36px; height: 36px; border-radius: 6px; border: 1px solid var(--default-border-color); background: var(--island-bg-color); color: var(--icon-fill-color); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; box-shadow: var(--shadow-island); transition: all 0.2s ease; }
+.excalidraw-controls-${id} button:hover { background: var(--button-hover-bg); transform: translateY(-1px); }
 .excalidraw-controls-${id} button svg { width: 20px; height: 20px; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; fill: none; }
-`;
+`);
 
 	const controlsHtml = `<div class="excalidraw-controls-${id}"><button onclick="window.excalidraw_${id}.zoom(1.1)" title="Zoom In"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button><button onclick="window.excalidraw_${id}.zoom(0.9)" title="Zoom Out"><svg viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"></line></svg></button><button onclick="window.excalidraw_${id}.reset()" title="Reset View"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg></button></div>`;
 
-	const script = `
+	// Minify Script (be careful with JS comments if any, but our regex handles block comments.
+	// Safe to assume we don't have // comments in the template literal or we should remove them)
+	const script = minify(`
 (function() {
 	const wrapper = document.getElementById('${containerId}');
 	const world = document.getElementById('${worldId}');
@@ -91,9 +107,11 @@ export function generateInteractiveExcalidrawWrapper(
 		reset: () => { init(); }
 	};
 })();
-`;
+`);
 
-	const content = `<style>${styles}</style><div id="${containerId}" class="${containerClass}"><div id="${worldId}" class="${worldClass}" style="width: ${width}px; height: ${height}px;">${svg}</div>${controlsHtml}</div><script>${script}</script>`;
+	const content = `<style>${minify(
+		EXCALIDRAW_STYLES
+	)} ${styles}</style><div id="${containerId}" class="excalidraw ${containerClass}"><div id="${worldId}" class="${worldClass}" style="width: ${width}px; height: ${height}px;">${svg}</div>${controlsHtml}</div><script>${script}</script>`;
 
 	if (isEmbed) {
 		return content; // Just the div and script
@@ -107,6 +125,7 @@ export function generateInteractiveExcalidrawWrapper(
 	<style>
 		${CSS_VARIABLES}
 		${SCOPED_MARKDOWN_STYLES}
+		${EXCALIDRAW_STYLES}
 		body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: var(--canvas-bg); }
 	</style>
 </head>

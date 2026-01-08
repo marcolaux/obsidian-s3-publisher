@@ -417,6 +417,11 @@ export class CanvasCompiler {
                 border-color: var(--background-modifier-border);
             }
         }
+        
+        .theme-dark .controls button, .theme--dark .controls button {
+            background: var(--interactive-normal);
+            border-color: var(--background-modifier-border);
+        }
     </style>
 </head>
 <body>

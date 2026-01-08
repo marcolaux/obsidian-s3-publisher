@@ -2,12 +2,14 @@
 	"name": "obsidian-s3-publisher",
 	"version": "1.0.5",
 	"description": "Publish notes to S3/MinIO",
+	"author": "Marco Laux",
 	"main": "main.js",
 	"type": "module",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
 		"version": "node version-bump.mjs && git add manifest.json versions.json",
+		"postversion": "git push --follow-tags",
 		"setup": "./install-local.sh",
 		"lint": "eslint ."
 	},

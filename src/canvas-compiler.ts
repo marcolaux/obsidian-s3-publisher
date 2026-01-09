@@ -68,12 +68,21 @@ export class CanvasCompiler {
 		return undefined; // fallback
 	}
 
-	async compile(file: TFile, content: string): Promise<string> {
+	async compile(
+		file: TFile,
+		content: string,
+		publishedPaths?: Set<string>
+	): Promise<string> {
 		const data = JSON.parse(content) as CanvasData;
 		if (!data.nodes || data.nodes.length === 0) return "<h1>Empty Canvas</h1>";
 
 		const bounds = this.getBounds(data.nodes);
-		const nodesHtml = await this.renderNodes(data.nodes, bounds, file);
+		const nodesHtml = await this.renderNodes(
+			data.nodes,
+			bounds,
+			file,
+			publishedPaths
+		);
 		const edgesHtml = this.renderEdges(data.edges, data.nodes, bounds);
 
 		return this.wrapHtml(file.basename, nodesHtml, edgesHtml, bounds);
@@ -103,7 +112,8 @@ export class CanvasCompiler {
 	async renderNodes(
 		nodes: CanvasNode[],
 		bounds: { minX: number; minY: number },
-		canvasFile: TFile
+		canvasFile: TFile,
+		publishedPaths?: Set<string>
 	): Promise<string> {
 		const promises = nodes.map(async (node) => {
 			const left = node.x - bounds.minX;
@@ -126,8 +136,14 @@ export class CanvasCompiler {
 			switch (node.type) {
 				case "text":
 					if (node.text) {
-						// Pass the canvas file itself as context so relative links resolve relative to the canvas
-						content = await this.markdownCompiler.render(canvasFile, node.text);
+						if (node.text) {
+							// Pass the canvas file itself as context so relative links resolve relative to the canvas
+							content = await this.markdownCompiler.render(
+								canvasFile,
+								node.text,
+								publishedPaths || new Set()
+							);
+						}
 					}
 					extraClass = "canvas-node-text";
 					break;
@@ -147,7 +163,13 @@ export class CanvasCompiler {
 								);
 								subContent = `# ${file.basename}\n\n${subContent}`;
 
-								content = await this.markdownCompiler.render(file, subContent);
+								subContent = `# ${file.basename}\n\n${subContent}`;
+
+								content = await this.markdownCompiler.render(
+									file,
+									subContent,
+									publishedPaths || new Set()
+								);
 								extraClass = "canvas-node-file canvas-node-file-md"; // Separate class for Markdown
 							} else if (
 								["png", "jpg", "jpeg", "gif", "webp"].includes(file.extension)

@@ -85,6 +85,8 @@ const BASE_MARKDOWN_STYLES = `
     a { color: var(--link-color); text-decoration: none; }
     a:hover { text-decoration: underline; }
     
+    .internal-link.is-unresolved { color: var(--text-muted); text-decoration: none; cursor: default; opacity: 0.7; }
+    
     code { background: var(--code-bg); padding: 0.2em 0.4em; border-radius: 3px; font-family: monospace; }
     pre { background: var(--code-bg); padding: 16px; overflow: auto; border-radius: 6px; }
     blockquote { border-left: 4px solid var(--blockquote-border); color: var(--blockquote-color); padding-left: 1em; margin-left: 0; }

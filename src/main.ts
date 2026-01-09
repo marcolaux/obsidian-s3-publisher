@@ -128,9 +128,7 @@ export default class S3PublishPlugin extends Plugin {
 						(p) => p.path === file.path
 					);
 					if (entryIndex !== -1) {
-						// Optionally unpublish? No, that might be dangerous/unexpected.
-						// Just remove from list or mark as missing?
-						// Let's remove from list to keep it clean, user can't unpublish easily anymore anyway if file is gone.
+						// Remove from list to keep it clean, as user can't unpublish easily anymore if file is gone.
 						this.settings.publishedFiles.splice(entryIndex, 1);
 						void this.saveSettings();
 					}
@@ -197,7 +195,7 @@ export default class S3PublishPlugin extends Plugin {
 		}
 	}
 
-	async publishNote(file: TFile) {
+	async publishNote(file: TFile, updateBacklinks: boolean = true) {
 		new Notice(`Publishing ${file.basename}...`);
 		try {
 			const content = await this.app.vault.read(file);
@@ -350,10 +348,19 @@ export default class S3PublishPlugin extends Plugin {
 
 			// 4. Generate HTML
 			let html = "";
+			const publishedPaths = new Set(
+				this.settings.publishedFiles.map((p) => p.path)
+			);
+
 			if (file.extension === "canvas") {
 				html = await this.canvasCompiler.compile(file, content);
 			} else {
-				html = await this.compiler.compile(file, content, bannerFilename);
+				html = await this.compiler.compile(
+					file,
+					content,
+					publishedPaths,
+					bannerFilename
+				);
 			}
 
 			// 5. Publish
@@ -422,36 +429,12 @@ export default class S3PublishPlugin extends Plugin {
 				}
 			);
 
-			// Post-publish: Update list
-			// We need the share_id. It might have been new.
-			// Let's re-read it from file or use what we passed/generated?
-			// Publisher returns URL.
-			// Publisher uses value passed in frontmatter OR generates new one.
-			// If it generated new one, it called the callback.
-			// Let's just grab the share_id from the file again to be sure?
-			// Or assume the callback worked.
-
-			// Better: parse the URL or use the share_id if we have it.
-			// The publisher doesn't return the ID directly but it's in the URL usually.
-			// Let's try to get the shareId from the file or the one we just saved.
-
-			// Re-read share_id to be robust
+			// Post-publish: Update list.
+			// We try to extract the share_id from the returned URL or the frontmatter.
 			let finalShareId = frontmatter?.share_id;
 			if (!finalShareId) {
-				// It was just generated. Read from file
-				if (file.extension === "md") {
-					// Cache might not be updated yet, read frontmatter manually?
-					// app.fileManager.processFrontMatter is atomic but simple read might lose race?
-					// Actually processFrontMatter awaits.
-					// this.app.metadataCache.getFileCache(file); // this might be stale
-					// Let's stick to: we know we updated it in the callback.
-					// But we didn't capture it in a local var in publishNote scope really well.
-					// IMPORTANT: We need the share_id to store in settings.
-					// We can extract it from the URL if we know the structure.
-					// URL: .../share_id/index.html
-					const match = url.match(/\/([a-z0-9-]+)\/index\.html$/);
-					if (match) finalShareId = match[1];
-				} else {
+				// Parse ID from URL: .../share_id/index.html
+				if (file.extension === "md" || file.extension === "canvas") {
 					const match = url.match(/\/([a-z0-9-]+)\/index\.html$/);
 					if (match) finalShareId = match[1];
 				}
@@ -475,6 +458,32 @@ export default class S3PublishPlugin extends Plugin {
 			// Copy to clipboard
 			await navigator.clipboard.writeText(url);
 			new Notice(`Published! Link copied:\n${url}`);
+
+			// --- Backlinks Update Logic ---
+			if (updateBacklinks) {
+				const resolvedLinks = this.app.metadataCache.resolvedLinks;
+				if (resolvedLinks) {
+					for (const [sourcePath, links] of Object.entries(resolvedLinks)) {
+						// Check if sourcePath links to our file
+						if (Object.prototype.hasOwnProperty.call(links, file.path)) {
+							// Check if sourcePath is published
+							if (
+								this.settings.publishedFiles.some((p) => p.path === sourcePath)
+							) {
+								const refFile = this.app.metadataCache.getFirstLinkpathDest(
+									sourcePath,
+									""
+								);
+								if (refFile instanceof TFile) {
+									new Notice(`Updating referring note: ${refFile.basename}`);
+									// Recursively publish
+									await this.publishNote(refFile, false);
+								}
+							}
+						}
+					}
+				}
+			}
 		} catch (err) {
 			console.error(err);
 			new Notice(

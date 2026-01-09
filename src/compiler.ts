@@ -3,7 +3,7 @@ import { App, TFile } from "obsidian";
 import { unified } from "unified";
 import remarkParse from "remark-parse";
 import remarkGfm from "remark-gfm";
-import remarkWikiLink from "remark-wiki-link";
+
 import remarkBreaks from "remark-breaks";
 import remarkRehype from "remark-rehype";
 import rehypeStringify from "rehype-stringify";
@@ -33,6 +33,7 @@ export class MarkdownCompiler {
 	async compile(
 		file: TFile,
 		content: string,
+		publishedPaths: Set<string>,
 		banner?: string
 	): Promise<string> {
 		// Check frontmatter for excalidraw-plugin
@@ -49,7 +50,7 @@ export class MarkdownCompiler {
 			return this.compileExcalidrawInterative(file, content);
 		}
 
-		const bodyHtml = await this.render(file, content);
+		const bodyHtml = await this.render(file, content, publishedPaths);
 		return this.wrapHtml(file.basename, bodyHtml, banner);
 	}
 
@@ -138,6 +139,7 @@ export class MarkdownCompiler {
 	async render(
 		file: TFile,
 		content: string,
+		publishedPaths: Set<string>,
 		depth: number = 0
 	): Promise<string> {
 		if (depth > 2) return "<p><em>(Embed depth limit reached)</em></p>";
@@ -146,10 +148,18 @@ export class MarkdownCompiler {
 		content = content.replace(/^---\s*[\r\n]+[\s\S]*?[\r\n]+---\s*[\r\n]*/, "");
 
 		// Pre-process Obsidian Embeds (Async)
-		content = await this.transformEmbeds(content, file.path, depth);
+		content = await this.transformEmbeds(
+			content,
+			file.path,
+			publishedPaths,
+			depth
+		);
 
 		// Pre-process Javascript/External Embeds (e.g. YouTube ![])
 		content = this.transformExternalEmbeds(content);
+
+		// Pre-process Wikilinks and Standard Links
+		content = await this.transformLinks(content, file.path, publishedPaths);
 
 		// Pre-process Hashtags
 		content = this.transformTags(content);
@@ -162,12 +172,7 @@ export class MarkdownCompiler {
 			.use(remarkBreaks)
 			// @ts-ignore
 			.use(remarkForceListBreaks)
-			.use(remarkWikiLink, {
-				hrefTemplate: (permalink: string) => `${permalink}`,
-				pageResolver: (name: string) => [name],
-				// @ts-ignore
-				aliasDivider: "|",
-			})
+
 			.use(remarkExcalidraw, { app: this.app })
 			.use(remarkRelativeLinkNormalizer)
 			// Switch to remark-rehype -> rehype-raw -> rehype-stringify for HTML handling
@@ -192,6 +197,7 @@ export class MarkdownCompiler {
 	async transformEmbeds(
 		markdown: string,
 		sourcePath: string,
+		publishedPaths: Set<string>,
 		depth: number
 	): Promise<string> {
 		// Regex to find ![[filename.ext]] or ![[filename.ext|alt]]
@@ -230,7 +236,12 @@ export class MarkdownCompiler {
 					const subContent = await this.app.vault.read(linkedFile);
 					// Render sub-note (depth+1)
 					// We wrap it in a div for styling
-					const subHtml = await this.render(linkedFile, subContent, depth + 1);
+					const subHtml = await this.render(
+						linkedFile,
+						subContent,
+						publishedPaths,
+						depth + 1
+					);
 
 					// If Excalidraw, just show the drawing without the header
 					const isExcalidraw =
@@ -302,6 +313,160 @@ export class MarkdownCompiler {
 		return newMarkdown;
 	}
 
+	async transformLinks(
+		markdown: string,
+		sourcePath: string,
+		publishedPaths: Set<string>
+	): Promise<string> {
+		let newMarkdown = markdown;
+
+		// 1. Wikilinks [[Link]] or [[Link|Label]]
+		const wikiLinkRegex = /\[\[(.*?)(?:\|(.*?))?\]\]/g;
+		const wikiMatches = [...newMarkdown.matchAll(wikiLinkRegex)];
+		const replacements = new Map<string, string>();
+
+		for (const match of wikiMatches) {
+			const original = match[0];
+			if (replacements.has(original)) continue;
+
+			const linkText = match[1];
+			const alias = match[2];
+
+			if (!linkText) continue;
+
+			const cleanLink = linkText.split("#")[0];
+			if (!cleanLink) continue;
+
+			const linkedFile = this.app.metadataCache.getFirstLinkpathDest(
+				cleanLink,
+				sourcePath
+			);
+
+			const label = alias || linkText;
+
+			if (
+				linkedFile instanceof TFile &&
+				linkedFile.extension === "md" &&
+				publishedPaths.has(linkedFile.path)
+			) {
+				const frontmatter =
+					this.app.metadataCache.getFileCache(linkedFile)?.frontmatter;
+				const shareId = frontmatter?.["share_id"] as string | undefined;
+
+				if (shareId) {
+					// Preserve Hash
+					const hashMatch = linkText.match(/#.*/);
+					const hash = hashMatch ? hashMatch[0] : "";
+
+					replacements.set(
+						original,
+						`<a href="../${shareId}/index.html${hash}" class="internal-link">${label}</a>`
+					);
+				} else {
+					replacements.set(
+						original,
+						`<span class="internal-link is-unresolved">${label}</span>`
+					);
+				}
+			} else {
+				// Not a markdown file or not found - leave as text or span?
+				// Using span to match style of unresolved
+				replacements.set(
+					original,
+					`<span class="internal-link is-unresolved">${label}</span>`
+				);
+			}
+		}
+
+		replacements.forEach((val, key) => {
+			newMarkdown = newMarkdown.split(key).join(val);
+		});
+
+		// 2. Standard Markdown Links [Label](path.md)
+		// Capture optional ! to exclude images
+		const mdLinkRegex = /(!?)\[(.*?)\]\((.*?)\)/g;
+		const mdMatches = [...newMarkdown.matchAll(mdLinkRegex)];
+		const mdReplacements = new Map<string, string>();
+
+		for (const match of mdMatches) {
+			const prefix = match[1];
+			const original = match[0];
+
+			// Skip images
+			if (prefix === "!") continue;
+			if (mdReplacements.has(original)) continue;
+
+			const label = match[2];
+			const url = match[3];
+
+			if (!url) continue;
+
+			if (
+				url.startsWith("http") ||
+				url.startsWith("mailto:") ||
+				url.startsWith("#")
+			)
+				continue;
+
+			// Only process internal links - if it looks like an external one, skip
+			// But allow "Note" (no extension) to be checked against vault
+			const cleanUrl = url.split("#")[0]?.split("?")[0];
+			if (!cleanUrl) continue;
+			// if (cleanUrl.startsWith("http")) continue; // Already checked above with regex/logic
+
+			const linkedFile = this.app.metadataCache.getFirstLinkpathDest(
+				cleanUrl,
+				sourcePath
+			);
+
+			if (
+				linkedFile instanceof TFile &&
+				linkedFile.extension === "md" &&
+				publishedPaths.has(linkedFile.path)
+			) {
+				const frontmatter =
+					this.app.metadataCache.getFileCache(linkedFile)?.frontmatter;
+				const shareId = frontmatter?.["share_id"] as string | undefined;
+
+				if (shareId) {
+					// Preserve Hash
+					const hashMatch = url.match(/#.*/);
+					const hash = hashMatch ? hashMatch[0] : "";
+
+					mdReplacements.set(
+						original,
+						`<a href="../${shareId}/index.html${hash}" class="internal-link">${label}</a>`
+					);
+				} else {
+					mdReplacements.set(
+						original,
+						`<span class="internal-link is-unresolved">${label}</span>`
+					);
+				}
+			} else if (linkedFile instanceof TFile && linkedFile.extension !== "md") {
+				// Linked to a non-md file (PDF, Image, etc.)
+				// We assume these are assets that ARE uploaded if linked.
+				// Link to the filename (flattened structure usually)
+				mdReplacements.set(
+					original,
+					`<a href="${linkedFile.name}" class="internal-link is-asset">${label}</a>`
+				);
+			} else {
+				// Not published, not a TFile, or not MD (and not caught above)
+				mdReplacements.set(
+					original,
+					`<span class="internal-link is-unresolved">${label}</span>`
+				);
+			}
+		}
+
+		mdReplacements.forEach((val, key) => {
+			newMarkdown = newMarkdown.split(key).join(val);
+		});
+
+		return newMarkdown;
+	}
+
 	transformExternalEmbeds(markdown: string): string {
 		// Regex to find ![]()
 		// We look for ![](url) specifically for video services
@@ -310,6 +475,11 @@ export class MarkdownCompiler {
 		return markdown.replace(
 			externalEmbedRegex,
 			(match: string, alt: string, url: string) => {
+				// Only attempt to embed if it resembles a web URL
+				if (!url.startsWith("http")) {
+					return match;
+				}
+
 				// Use link-to-iframe for multiple service support (YouTube, Vimeo, etc.)
 				const embed = linkToIframe(url);
 				if (embed) {

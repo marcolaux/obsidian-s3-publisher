@@ -19,7 +19,9 @@ import {
 	SYNTAX_HIGHLIGHTING_STYLES,
 	TOC_STYLES,
 } from "./styles";
+
 import rehypeSlug from "rehype-slug";
+import { linkToIframe } from "link-to-iframe";
 
 export class MarkdownCompiler {
 	app: App;
@@ -308,14 +310,17 @@ export class MarkdownCompiler {
 		return markdown.replace(
 			externalEmbedRegex,
 			(match: string, alt: string, url: string) => {
-				// YouTube
-				const section = url.match(
-					/(?:youtube\.com\/(?:[^/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?/\s]{11})/
-				);
-				if (section && section[1]) {
-					const videoId = section[1];
-					return `<div class="video-container" style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; max-width: 100%;">
-                            <iframe src="https://www.youtube.com/embed/${videoId}" frameborder="0" allowfullscreen style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></iframe>
+				// Use link-to-iframe for multiple service support (YouTube, Vimeo, etc.)
+				const embed = linkToIframe(url);
+				if (embed) {
+					// link-to-iframe returns a raw iframe string.
+					// We wrap it in a container for responsiveness.
+					// The container has a 16:9 aspect ratio padding (56.25%).
+					return `<div class="external-embed-container" style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; max-width: 100%;">
+                            ${embed.replace(
+															"<iframe",
+															'<iframe style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"'
+														)}
                         </div>`;
 				}
 

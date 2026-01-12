@@ -1,19 +1,18 @@
 import { App } from "obsidian";
 
 /**
- * Interface for the SecretStorage API (available in newer Obsidian versions).
+ * Interface for the SecretStorage API (available in Obsidian v1.11.4+).
+ * Note: These methods are synchronous in the Obsidian API.
  */
 interface SecretStorage {
-	has(key: string): Promise<boolean>;
-	get(key: string): Promise<string | null>;
-	save(key: string, value: string): Promise<void>;
-	delete(key: string): Promise<void>;
+	getSecret(key: string): string | null;
+	setSecret(key: string, value: string): void;
+	listSecrets(): string[];
 }
 
 // Extend App interface to include secretStorage
 declare module "obsidian" {
 	interface App {
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		secretStorage?: SecretStorage;
 	}
 }
@@ -29,7 +28,11 @@ export class SecretsWrapper {
 	 * Check if SecretStorage is available in the current Obsidian version.
 	 */
 	isAvailable(): boolean {
-		return !!this.app.secretStorage;
+		return (
+			!!this.app.secretStorage &&
+			typeof this.app.secretStorage.getSecret === "function" &&
+			typeof this.app.secretStorage.setSecret === "function"
+		);
 	}
 
 	/**
@@ -37,7 +40,7 @@ export class SecretsWrapper {
 	 */
 	async saveSecret(key: string, value: string): Promise<void> {
 		if (this.isAvailable() && this.app.secretStorage) {
-			await this.app.secretStorage.save(key, value);
+			this.app.secretStorage.setSecret(key, value);
 		}
 	}
 
@@ -46,17 +49,19 @@ export class SecretsWrapper {
 	 */
 	async getSecret(key: string): Promise<string | null> {
 		if (this.isAvailable() && this.app.secretStorage) {
-			return await this.app.secretStorage.get(key);
+			return this.app.secretStorage.getSecret(key);
 		}
 		return null;
 	}
 
 	/**
 	 * Delete a secret.
+	 * Note: Obsidian SecretStorage does not have an explicit delete method.
+	 * We overwrite it with an empty string to effectively clear it.
 	 */
 	async deleteSecret(key: string): Promise<void> {
 		if (this.isAvailable() && this.app.secretStorage) {
-			await this.app.secretStorage.delete(key);
+			this.app.secretStorage.setSecret(key, "");
 		}
 	}
 }

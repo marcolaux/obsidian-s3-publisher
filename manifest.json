@@ -1,7 +1,7 @@
 {
 	"id": "obsidian-s3-publisher",
 	"name": "S3 Publisher",
-	"version": "1.5.1",
+	"version": "1.5.2",
 	"minAppVersion": "0.15.0",
 	"description": "Publish notes to S3-compatible storage with private links.",
 	"author": "Marco Laux",

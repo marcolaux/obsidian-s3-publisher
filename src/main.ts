@@ -579,8 +579,8 @@ export default class S3PublishPlugin extends Plugin {
 
 		// Overlay SecretStorage if available
 		if (this.secretsWrapper.isAvailable()) {
-			const s3AccessKey = await this.secretsWrapper.getSecret("s3AccessKey");
-			const s3SecretKey = await this.secretsWrapper.getSecret("s3SecretKey");
+			const s3AccessKey = await this.secretsWrapper.getSecret("s3-access-key");
+			const s3SecretKey = await this.secretsWrapper.getSecret("s3-secret-key");
 
 			if (s3AccessKey) this.settings.s3AccessKey = s3AccessKey;
 			if (s3SecretKey) this.settings.s3SecretKey = s3SecretKey;
@@ -593,20 +593,20 @@ export default class S3PublishPlugin extends Plugin {
 			// If value is empty, we delete the secret.
 			if (this.settings.s3AccessKey) {
 				await this.secretsWrapper.saveSecret(
-					"s3AccessKey",
+					"s3-access-key",
 					this.settings.s3AccessKey
 				);
 			} else {
-				await this.secretsWrapper.deleteSecret("s3AccessKey");
+				await this.secretsWrapper.deleteSecret("s3-access-key");
 			}
 
 			if (this.settings.s3SecretKey) {
 				await this.secretsWrapper.saveSecret(
-					"s3SecretKey",
+					"s3-secret-key",
 					this.settings.s3SecretKey
 				);
 			} else {
-				await this.secretsWrapper.deleteSecret("s3SecretKey");
+				await this.secretsWrapper.deleteSecret("s3-secret-key");
 			}
 
 			// Save others to disk, excluding secrets

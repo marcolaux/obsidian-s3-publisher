@@ -8,8 +8,8 @@ let targetVersion = process.argv[2];
 if (!targetVersion) {
 	const currentVersion = manifest.version;
 	const [major, minor, patch] = currentVersion.split(".").map(Number);
-	targetVersion = `${major}.${minor + 1}.0`;
-	console.log(`No version argument provided. Auto-bumping minor version: ${currentVersion} -> ${targetVersion}`);
+	targetVersion = `${major}.${minor}.${patch + 1}`;
+	console.log(`No version argument provided. Auto-bumping patch version: ${currentVersion} -> ${targetVersion}`);
 } else {
 	console.log(`Version argument provided. Bumping to: ${targetVersion}`);
 }

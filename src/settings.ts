@@ -8,6 +8,7 @@ import {
 	setIcon,
 	TAbstractFile,
 } from "obsidian";
+import { SecretsWrapper } from "./secrets_wrapper";
 
 export interface PublishedFile {
 	path: string;
@@ -37,6 +38,7 @@ export const DEFAULT_SETTINGS: S3PublisherSettings = {
 
 export interface IS3PublishPlugin extends Plugin {
 	settings: S3PublisherSettings;
+	secretsWrapper: SecretsWrapper;
 	saveSettings(): Promise<void>;
 	publisher: { testConnection(): Promise<void> };
 	unpublishNote(file: TAbstractFile): Promise<void>;
@@ -161,6 +163,13 @@ export class S3PublisherSettingTab extends PluginSettingTab {
 					})
 			);
 
+		if (this.plugin.secretsWrapper.isAvailable()) {
+			containerEl.createEl("div", {
+				text: "🔒 Credentials will be stored securely using Obsidian SecretStorage.",
+				cls: "setting-item-description",
+			});
+		}
+
 		new Setting(containerEl)
 			.setName("Access key ID")
 			.setDesc("S3 access key")
@@ -187,6 +196,24 @@ export class S3PublisherSettingTab extends PluginSettingTab {
 					});
 				text.inputEl.type = "password";
 			});
+
+		if (this.plugin.secretsWrapper.isAvailable()) {
+			new Setting(containerEl)
+				.setName("Forget credentials")
+				.setDesc("Securely remove stored credentials from the system keychain.")
+				.addButton((button) =>
+					button
+						.setButtonText("Clear Credentials")
+						.setWarning()
+						.onClick(async () => {
+							this.plugin.settings.s3AccessKey = "";
+							this.plugin.settings.s3SecretKey = "";
+							await this.plugin.saveSettings();
+							this.display();
+							new Notice("Credentials cleared from SecretStorage.");
+						})
+				);
+		}
 
 		new Setting(containerEl)
 			.setName("Test connection")

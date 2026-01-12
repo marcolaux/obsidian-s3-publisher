@@ -8,6 +8,7 @@ import {
 } from "./settings";
 import { MarkdownCompiler } from "./compiler";
 import { CanvasCompiler } from "./canvas-compiler";
+import { SecretsWrapper } from "./secrets_wrapper";
 
 interface CanvasNode {
 	type: string;
@@ -31,8 +32,10 @@ export default class S3PublishPlugin extends Plugin {
 	publisher: S3Publisher;
 	compiler: MarkdownCompiler;
 	canvasCompiler: CanvasCompiler;
+	secretsWrapper: SecretsWrapper;
 
 	async onload() {
+		this.secretsWrapper = new SecretsWrapper(this.app);
 		await this.loadSettings();
 
 		this.publisher = new S3Publisher(this.settings);
@@ -573,10 +576,48 @@ export default class S3PublishPlugin extends Plugin {
 			DEFAULT_SETTINGS,
 			(await this.loadData()) as S3PublisherSettings
 		);
+
+		// Overlay SecretStorage if available
+		if (this.secretsWrapper.isAvailable()) {
+			const s3AccessKey = await this.secretsWrapper.getSecret("s3AccessKey");
+			const s3SecretKey = await this.secretsWrapper.getSecret("s3SecretKey");
+
+			if (s3AccessKey) this.settings.s3AccessKey = s3AccessKey;
+			if (s3SecretKey) this.settings.s3SecretKey = s3SecretKey;
+		}
 	}
 
 	async saveSettings() {
-		await this.saveData(this.settings);
+		if (this.secretsWrapper.isAvailable()) {
+			// Save secrets
+			// If value is empty, we delete the secret.
+			if (this.settings.s3AccessKey) {
+				await this.secretsWrapper.saveSecret(
+					"s3AccessKey",
+					this.settings.s3AccessKey
+				);
+			} else {
+				await this.secretsWrapper.deleteSecret("s3AccessKey");
+			}
+
+			if (this.settings.s3SecretKey) {
+				await this.secretsWrapper.saveSecret(
+					"s3SecretKey",
+					this.settings.s3SecretKey
+				);
+			} else {
+				await this.secretsWrapper.deleteSecret("s3SecretKey");
+			}
+
+			// Save others to disk, excluding secrets
+			const settingsToSave = { ...this.settings };
+			settingsToSave.s3AccessKey = "";
+			settingsToSave.s3SecretKey = "";
+			await this.saveData(settingsToSave);
+		} else {
+			await this.saveData(this.settings);
+		}
+
 		// Refresh publisher instances if needed
 		this.publisher.settings = this.settings;
 	}

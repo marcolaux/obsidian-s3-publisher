@@ -171,6 +171,11 @@ export class CanvasCompiler {
 									publishedPaths || new Set()
 								);
 								extraClass = "canvas-node-file canvas-node-file-md"; // Separate class for Markdown
+							} else if (file.extension === "pdf") {
+								content = `<embed src="${this.escapeHtml(
+									file.name
+								)}" type="application/pdf" style="width:100%; height:100%;" />`;
+								extraClass = "canvas-node-file canvas-node-file-pdf";
 							} else if (
 								["png", "jpg", "jpeg", "gif", "webp"].includes(file.extension)
 							) {
@@ -367,7 +372,8 @@ export class CanvasCompiler {
              padding-bottom: 0;
         }
         
-        .canvas-node-file-media .canvas-node-content {
+        .canvas-node-file-media .canvas-node-content,
+				.canvas-node-file-pdf .canvas-node-content {
             padding: 0;
             overflow: hidden; /* Ensure images don't overflow */
             display: flex;

@@ -13,6 +13,7 @@ export interface CanvasNode {
 	width: number;
 	height: number;
 	color?: string;
+	background?: string;
 }
 
 export interface CanvasEdge {
@@ -128,6 +129,18 @@ export class CanvasCompiler {
 				// Let's use a subtle background tint and border.
 				// We need to convert hex to rgba for transparency if possible, OR just use the solid color for border.
 				style += `border: 2px solid ${color}; background-color: ${color}20;`; // 20 = approx 12% opacity
+			}
+
+			if (node.background) {
+				const bgFile = this.app.metadataCache.getFirstLinkpathDest(
+					node.background,
+					""
+				);
+				if (bgFile) {
+					style += `background-image: url('${this.escapeHtml(
+						bgFile.name
+					)}'); background-size: cover; background-repeat: no-repeat; background-position: center;`;
+				}
 			}
 
 			let content = "";
@@ -455,8 +468,8 @@ export class CanvasCompiler {
 <body>
     <div class="canvas-wrapper" id="canvas-wrapper">
         <div class="canvas-world" id="canvas-world" style="width: ${bounds.width}px; height: ${bounds.height}px;">
-            ${edgesHtml}
             ${nodesHtml}
+            ${edgesHtml}
         </div>
     </div>
     <div class="controls">

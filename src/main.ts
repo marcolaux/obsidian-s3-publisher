@@ -236,6 +236,20 @@ export default class S3PublishPlugin extends Plugin {
 										}
 									}
 								}
+								// Background Image Check
+								if (node.background) {
+									const bgFile = this.app.metadataCache.getFirstLinkpathDest(
+										node.background as string,
+										f.path
+									);
+									if (
+										bgFile instanceof TFile &&
+										!assets.some((a) => a.path === bgFile.name)
+									) {
+										const ab = await this.app.vault.readBinary(bgFile);
+										assets.push({ path: bgFile.name, content: ab });
+									}
+								}
 							}
 						}
 					} catch (e) {

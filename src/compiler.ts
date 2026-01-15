@@ -288,7 +288,7 @@ export class MarkdownCompiler {
 							replacement = `<audio controls src="${filename}"></audio>`;
 							break;
 						case "pdf":
-							replacement = `<embed src="${filename}" type="application/pdf" width="100%" height="80vh" />`;
+							replacement = `<embed src="${filename}" type="application/pdf" class="pdf-embed" />`;
 							break;
 						default:
 							replacement = `<a href="${filename}" download class="download-link">Download ${altText}</a>`;
@@ -994,7 +994,7 @@ function remarkRelativeLinkNormalizer() {
 								replacement = `<audio controls src="${filename}"></audio>`;
 								break;
 							case "pdf":
-								replacement = `<embed src="${filename}" type="application/pdf" class="embedded-pdf" style="width: 100%; height: 800px; min-height: 800px;" />`;
+								replacement = `<embed src="${filename}" type="application/pdf" class="pdf-embed" />`;
 								break;
 							default:
 								// Fallback for other files (zip, doc, etc) -> Download Link

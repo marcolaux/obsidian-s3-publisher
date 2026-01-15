@@ -219,6 +219,11 @@ export const MARKDOWN_STYLES = `
         padding-bottom: 5px;
     }
 
+    .pdf-embed {
+        width: 100%;
+        height: 95vh;
+    }
+
     ${BASE_MARKDOWN_STYLES}
 `;
 

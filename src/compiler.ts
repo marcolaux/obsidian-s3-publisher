@@ -34,11 +34,11 @@ export class MarkdownCompiler {
 		file: TFile,
 		content: string,
 		publishedPaths: Set<string>,
-		banner?: string
+		banner?: string,
 	): Promise<string> {
 		// Check frontmatter for excalidraw-plugin
 		const frontmatterMatch = content.match(
-			/^---\s*[\r\n]+([\s\S]*?)[\r\n]+---/
+			/^---\s*[\r\n]+([\s\S]*?)[\r\n]+---/,
 		);
 		let isExcalidrawFrontmatter = false;
 		if (frontmatterMatch && frontmatterMatch[1]) {
@@ -56,7 +56,7 @@ export class MarkdownCompiler {
 
 	async compileExcalidrawInterative(
 		file: TFile,
-		content: string
+		content: string,
 	): Promise<string> {
 		// Extract compressed-json block
 		const match = content.match(/```compressed-json\s*([\s\S]*?)\s*```/);
@@ -64,13 +64,13 @@ export class MarkdownCompiler {
 		if (!match || !match[1]) {
 			return this.wrapHtml(
 				file.basename,
-				"<p>Error: No Excalidraw data found</p>"
+				"<p>Error: No Excalidraw data found</p>",
 			);
 		}
 
 		try {
 			const decompressed = LZString.decompressFromBase64(
-				match[1].replace(/\s/g, "")
+				match[1].replace(/\s/g, ""),
 			);
 
 			if (!decompressed) throw new Error("Decompression failed");
@@ -124,14 +124,14 @@ export class MarkdownCompiler {
 				width,
 				height,
 				false,
-				file.basename
+				file.basename,
 			);
 		} catch (e) {
 			return this.wrapHtml(
 				file.basename,
 				`<p>Error processing Excalidraw file: ${
 					e instanceof Error ? e.message : String(e)
-				}</p>`
+				}</p>`,
 			);
 		}
 	}
@@ -140,7 +140,7 @@ export class MarkdownCompiler {
 		file: TFile,
 		content: string,
 		publishedPaths: Set<string>,
-		depth: number = 0
+		depth: number = 0,
 	): Promise<string> {
 		if (depth > 2) return "<p><em>(Embed depth limit reached)</em></p>";
 
@@ -152,7 +152,7 @@ export class MarkdownCompiler {
 			content,
 			file.path,
 			publishedPaths,
-			depth
+			depth,
 		);
 
 		// Pre-process Javascript/External Embeds (e.g. YouTube ![])
@@ -187,6 +187,8 @@ export class MarkdownCompiler {
 			// @ts-ignore
 			.use(rehypeSlug)
 			// @ts-ignore
+			.use(rehypeIframeEnhancer)
+			// @ts-ignore
 			.use(rehypeStringify, { allowDangerousHtml: true });
 
 		// @ts-ignore
@@ -198,7 +200,7 @@ export class MarkdownCompiler {
 		markdown: string,
 		sourcePath: string,
 		publishedPaths: Set<string>,
-		depth: number
+		depth: number,
 	): Promise<string> {
 		// Regex to find ![[filename.ext]] or ![[filename.ext|alt]]
 		const embedRegex = /!\[\[(.*?)(?:\|(.*?))?\]\]/g;
@@ -224,7 +226,7 @@ export class MarkdownCompiler {
 			const cleanLink = linkText.split("#")[0] || linkText;
 			const linkedFile = this.app.metadataCache.getFirstLinkpathDest(
 				cleanLink,
-				sourcePath
+				sourcePath,
 			);
 
 			if (linkedFile instanceof TFile) {
@@ -240,7 +242,7 @@ export class MarkdownCompiler {
 						linkedFile,
 						subContent,
 						publishedPaths,
-						depth + 1
+						depth + 1,
 					);
 
 					// If Excalidraw, just show the drawing without the header
@@ -251,12 +253,12 @@ export class MarkdownCompiler {
 					if (isExcalidraw) {
 						replacements.set(
 							originalTag,
-							`<div class="embedded-excalidraw">${subHtml}</div>`
+							`<div class="embedded-excalidraw">${subHtml}</div>`,
 						);
 					} else {
 						replacements.set(
 							originalTag,
-							`<div class="embedded-note-container"><h3>${linkedFile.basename}</h3>${subHtml}</div>`
+							`<div class="embedded-note-container"><h3>${linkedFile.basename}</h3>${subHtml}</div>`,
 						);
 					}
 				} else {
@@ -316,7 +318,7 @@ export class MarkdownCompiler {
 	async transformLinks(
 		markdown: string,
 		sourcePath: string,
-		publishedPaths: Set<string>
+		publishedPaths: Set<string>,
 	): Promise<string> {
 		let newMarkdown = markdown;
 
@@ -339,7 +341,7 @@ export class MarkdownCompiler {
 
 			const linkedFile = this.app.metadataCache.getFirstLinkpathDest(
 				cleanLink,
-				sourcePath
+				sourcePath,
 			);
 
 			const label = alias || linkText;
@@ -360,12 +362,12 @@ export class MarkdownCompiler {
 
 					replacements.set(
 						original,
-						`<a href="../${shareId}/index.html${hash}" class="internal-link">${label}</a>`
+						`<a href="../${shareId}/index.html${hash}" class="internal-link">${label}</a>`,
 					);
 				} else {
 					replacements.set(
 						original,
-						`<span class="internal-link is-unresolved">${label}</span>`
+						`<span class="internal-link is-unresolved">${label}</span>`,
 					);
 				}
 			} else {
@@ -373,7 +375,7 @@ export class MarkdownCompiler {
 				// Using span to match style of unresolved
 				replacements.set(
 					original,
-					`<span class="internal-link is-unresolved">${label}</span>`
+					`<span class="internal-link is-unresolved">${label}</span>`,
 				);
 			}
 		}
@@ -416,7 +418,7 @@ export class MarkdownCompiler {
 
 			const linkedFile = this.app.metadataCache.getFirstLinkpathDest(
 				cleanUrl,
-				sourcePath
+				sourcePath,
 			);
 
 			if (
@@ -435,12 +437,12 @@ export class MarkdownCompiler {
 
 					mdReplacements.set(
 						original,
-						`<a href="../${shareId}/index.html${hash}" class="internal-link">${label}</a>`
+						`<a href="../${shareId}/index.html${hash}" class="internal-link">${label}</a>`,
 					);
 				} else {
 					mdReplacements.set(
 						original,
-						`<span class="internal-link is-unresolved">${label}</span>`
+						`<span class="internal-link is-unresolved">${label}</span>`,
 					);
 				}
 			} else if (linkedFile instanceof TFile && linkedFile.extension !== "md") {
@@ -449,13 +451,13 @@ export class MarkdownCompiler {
 				// Link to the filename (flattened structure usually)
 				mdReplacements.set(
 					original,
-					`<a href="${linkedFile.name}" class="internal-link is-asset">${label}</a>`
+					`<a href="${linkedFile.name}" class="internal-link is-asset">${label}</a>`,
 				);
 			} else {
 				// Not published, not a TFile, or not MD (and not caught above)
 				mdReplacements.set(
 					original,
-					`<span class="internal-link is-unresolved">${label}</span>`
+					`<span class="internal-link is-unresolved">${label}</span>`,
 				);
 			}
 		}
@@ -489,14 +491,14 @@ export class MarkdownCompiler {
 					return `<div class="external-embed-container" style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; max-width: 100%;">
                             ${embed.replace(
 															"<iframe",
-															'<iframe style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"'
+															'<iframe style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"',
 														)}
                         </div>`;
 				}
 
 				// Fallback: standard image or whatever remark handles
 				return match;
-			}
+			},
 		);
 	}
 
@@ -517,7 +519,7 @@ export class MarkdownCompiler {
 				if (/^#\d+$/.test(tag)) return match;
 
 				return `${prefix}<span class="tag">${tag}</span>`;
-			}
+			},
 		);
 	}
 
@@ -705,7 +707,7 @@ function remarkExcalidraw(options: { app: App }) {
 			if (node.lang === "compressed-json" && !svgHtml) {
 				try {
 					const decompressed = LZString.decompressFromBase64(
-						node.value.replace(/\s/g, "") as string
+						node.value.replace(/\s/g, "") as string,
 					);
 
 					if (decompressed) {
@@ -767,7 +769,7 @@ function remarkExcalidraw(options: { app: App }) {
 				uniqueId,
 				width,
 				height,
-				true
+				true,
 			);
 
 			// Replace contents
@@ -862,7 +864,7 @@ async function hydrateExcalidrawFiles(app: App, json: any, markdown: string) {
 						} catch (e) {
 							console.error(
 								`Failed to read embedded excalidraw file ${cleanLink}`,
-								e
+								e,
 							);
 						}
 					}
@@ -1020,6 +1022,47 @@ function remarkRelativeLinkNormalizer() {
 
 		visit(tree, "image", visitor);
 		visit(tree, "link", visitor);
+	};
+	/* eslint-enable */
+}
+
+function rehypeIframeEnhancer() {
+	/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment */
+	return (tree: any) => {
+		visit(tree, "element", (node: any) => {
+			if (node.tagName === "iframe") {
+				const properties = node.properties || {};
+				const { width, height, style } = properties;
+
+				// Check if style already defines height (e.g. from transformExternalEmbeds which sets height: 100%)
+				const styleString = String(
+					Array.isArray(style) ? style.join(";") : style || "",
+				);
+				const hasHeightInStyle = /height\s*:/i.test(styleString);
+
+				if (width && height) {
+					// Scenario: Inline attributes present
+					// User wants full width, and height based on aspect ratio
+					const w = parseInt(String(width), 10);
+					const h = parseInt(String(height), 10);
+
+					if (!isNaN(w) && !isNaN(h)) {
+						const newStyle = `width: 100%; aspect-ratio: ${w} / ${h};`;
+						// Append to existing style
+						node.properties.style = styleString
+							? `${styleString}; ${newStyle}`
+							: newStyle;
+					}
+				} else if (!hasHeightInStyle) {
+					// Scenario: No attributes, no existing height style
+					// Default to 3:2 aspect ratio (1.5)
+					const defaultStyle = "width: 100%; aspect-ratio: 3 / 2;";
+					node.properties.style = styleString
+						? `${styleString}; ${defaultStyle}`
+						: defaultStyle;
+				}
+			}
+		});
 	};
 	/* eslint-enable */
 }

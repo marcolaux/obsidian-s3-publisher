@@ -96,7 +96,9 @@ const BASE_MARKDOWN_STYLES = `
     th { background-color: var(--table-header-bg); font-weight: 600; }
     tr:nth-child(2n) { background-color: var(--table-row-even-bg); }
     
-    ul.contains-task-list { list-style-type: none; padding-left: 0; }
+    ul, ol { padding-left: 0; }
+    li > ul, li > ol { padding-left: 1.33em; }
+    ul.contains-task-list { list-style-type: none; }
     li.task-list-item { list-style-type: none; }
     
     .tag {

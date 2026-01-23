@@ -96,10 +96,13 @@ const BASE_MARKDOWN_STYLES = `
     th { background-color: var(--table-header-bg); font-weight: 600; }
     tr:nth-child(2n) { background-color: var(--table-row-even-bg); }
     
-    ul, ol { padding-left: 0; }
-    li > ul, li > ol { padding-left: 1.33em; }
-    ul.contains-task-list { list-style-type: none; }
-    li.task-list-item { list-style-type: none; }
+    ul, ol { padding-left: 2em; }
+    ul > li, ol > li { margin: 0.33em 0; }
+    li > ul, li > ol { padding-left: 1.5em; }
+    ul.contains-task-list li:not(.task-list-item) { list-style-type: none; }
+    .markdown-preview-view > ul.contains-task-list { padding-left: 0.33em; }
+    li.task-list-item { list-style-type: none;  }
+    li > p { margin: 0; }
     
     .tag {
         background-color: var(--tag-bg);

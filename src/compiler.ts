@@ -171,6 +171,8 @@ export class MarkdownCompiler {
 			// @ts-ignore
 			.use(remarkBreaks)
 			// @ts-ignore
+			.use(remarkSplitTaskList)
+			// @ts-ignore
 			.use(remarkForceListBreaks)
 
 			.use(remarkExcalidraw, { app: this.app })
@@ -692,6 +694,57 @@ function remarkForceListBreaks() {
 				}
 			}
 			node.children = newChildren;
+		});
+	};
+	/* eslint-enable */
+}
+
+function remarkSplitTaskList() {
+	/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment */
+	return (tree: any) => {
+		visit(tree, "list", (node: any, index: number, parent: any) => {
+			if (!parent || !node.children || node.children.length === 0) return;
+
+			const newLists: any[] = [];
+			let currentListItems: any[] = [];
+			let currentIsTask =
+				node.children[0].checked !== null &&
+				node.children[0].checked !== undefined;
+
+			for (const child of node.children) {
+				const isTask = child.checked !== null && child.checked !== undefined;
+
+				if (isTask !== currentIsTask) {
+					// Push current set as a new list
+					newLists.push({
+						type: "list",
+						ordered: node.ordered,
+						start: node.start,
+						spread: node.spread,
+						children: currentListItems,
+					});
+					currentListItems = [];
+					currentIsTask = isTask;
+				}
+				currentListItems.push(child);
+			}
+
+			// Push final group
+			if (currentListItems.length > 0) {
+				newLists.push({
+					type: "list",
+					ordered: node.ordered,
+					start: node.start,
+					spread: node.spread,
+					children: currentListItems,
+				});
+			}
+
+			if (newLists.length > 1) {
+				parent.children.splice(index, 1, ...newLists);
+				return index + newLists.length; // Skip the new nodes
+			}
+			return;
 		});
 	};
 	/* eslint-enable */

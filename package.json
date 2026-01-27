@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-s3-publisher",
-	"version": "1.5.8",
+	"version": "1.5.9",
 	"description": "Publish notes to S3/MinIO",
 	"author": "Marco Laux",
 	"main": "main.js",

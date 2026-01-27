@@ -646,3 +646,51 @@ export const EXCALIDRAW_STYLES = `
     ${EXCALIDRAW_VARS_DARK}
 }
 `;
+
+export const PREVIEW_STYLES = `
+    .popover {
+        position: absolute;
+        z-index: 1000;
+        width: 400px;
+        max-height: 300px;
+        overflow: hidden;
+        background-color: var(--bg-color);
+        border: 1px solid var(--heading-border);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        border-radius: 8px;
+        opacity: 0;
+        transition: opacity 0.2s ease-in-out;
+        pointer-events: none;
+        padding: 0;
+        font-size: 0.9em;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .popover.visible {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    .popover-content {
+        overflow-y: auto;
+        padding: 16px;
+        flex: 1;
+    }
+
+    .popover-content h1:first-child {
+        margin-top: 0;
+        font-size: 1.5em;
+    }
+
+    /* Hide elements we don't want in preview */
+    .popover-content .affine-toc-container,
+    .popover-content .banner-container {
+        display: none;
+    }
+
+    .theme-dark .popover, .theme--dark .popover {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+        border-color: var(--heading-border);
+    }
+`;

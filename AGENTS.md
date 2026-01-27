@@ -23,6 +23,9 @@
 ## Code Style & Conventions
 
 - **Strict TypeScript**: No implicit `any`. Interfaces for all data structures (e.g., `CanvasData`, `ShareFrontMatter`).
+  - **Lint**: `npm run lint` (Checks standard Obsidian rules + strict typing). Always lint after you changed more than 10 lines of code.
+  - IMPORTANT: Try to avoid any es lint ignores and create proper type definitions.
+  - Type definitions always have to be defined at the start of the file after the imports.
 - **Async/Await**: Preferred over Promises.
 - **Error Handling**: Wrap all network and parsing logic in `try/catch` with user-facing `Notice()` feedback.
 - **CSS Variables**: Use Obsidian's native variables (`--background-primary`, `--text-normal`) for dark mode compatibility.

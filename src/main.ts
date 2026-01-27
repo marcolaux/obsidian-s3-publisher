@@ -71,17 +71,28 @@ export default class S3PublishPlugin extends Plugin {
 				) {
 					// Check if published
 					const publishedFile = this.settings.publishedFiles.find(
-						(p) => p.path === file.path
+						(p) => p.path === file.path,
 					);
 
 					menu.addItem((item) => {
 						item
 							.setTitle(
-								publishedFile ? "S3: Update published note" : "S3: Publish Note"
+								publishedFile
+									? "S3: Update published note"
+									: "S3: Publish Note",
 							)
 							.setIcon("upload-cloud")
 							.onClick(async () => {
 								await this.publishNote(file);
+							});
+					});
+
+					menu.addItem((item) => {
+						item
+							.setTitle("S3: Publish Recursively")
+							.setIcon("sheets-in-box")
+							.onClick(async () => {
+								await this.publishNoteRecursively(file);
 							});
 					});
 
@@ -103,9 +114,81 @@ export default class S3PublishPlugin extends Plugin {
 									await this.unpublishNote(file);
 								});
 						});
+
+						// Recursive Unpublish Visibility Logic
+						// 1. Is published (already checked)
+						// 2. Has Outgoing Published OR Has Incoming Published
+						const cache = this.app.metadataCache.getFileCache(file);
+						let hasOutgoingPublished = false;
+
+						if (cache) {
+							const outgoingLinks: string[] = [];
+							if (cache.links)
+								outgoingLinks.push(...cache.links.map((l) => l.link));
+							if (cache.embeds)
+								outgoingLinks.push(...cache.embeds.map((l) => l.link));
+							if (cache.frontmatter?.["banner"]) {
+								const b = cache.frontmatter["banner"] as unknown;
+								if (typeof b === "string")
+									outgoingLinks.push(b.replace(/\[\[|\]\]/g, ""));
+							}
+
+							for (const link of outgoingLinks) {
+								const clean = link.split("#")[0]?.split("?")[0];
+								if (!clean) continue;
+
+								const dest = this.app.metadataCache.getFirstLinkpathDest(
+									clean,
+									file.path,
+								);
+								if (
+									dest &&
+									this.settings.publishedFiles.some((p) => p.path === dest.path)
+								) {
+									hasOutgoingPublished = true;
+									break;
+								}
+							}
+						}
+
+						let hasIncomingPublished = false;
+						const resolvedLinks = this.app.metadataCache.resolvedLinks;
+						if (resolvedLinks && !hasOutgoingPublished) {
+							// Only check incoming if outgoing didn't already trigger it
+							for (const [sourcePath, links] of Object.entries(resolvedLinks)) {
+								if (Object.prototype.hasOwnProperty.call(links, file.path)) {
+									if (
+										this.settings.publishedFiles.some(
+											(p) => p.path === sourcePath,
+										)
+									) {
+										hasIncomingPublished = true;
+										break;
+									}
+								}
+							}
+						}
+
+						if (hasOutgoingPublished || hasIncomingPublished) {
+							menu.addItem((item) => {
+								item
+									.setTitle("S3: Unpublish Recursively")
+									.setIcon("trash-2")
+									.onClick(async () => {
+										if (
+											// eslint-disable-next-line no-alert
+											confirm(
+												"Are you sure you want to recursively unpublish this note and all connected published notes? This cannot be undone.",
+											)
+										) {
+											await this.unpublishNoteRecursively(file);
+										}
+									});
+							});
+						}
 					}
 				}
-			})
+			}),
 		);
 
 		// Track Renames
@@ -113,14 +196,14 @@ export default class S3PublishPlugin extends Plugin {
 			this.app.vault.on("rename", (file, oldPath) => {
 				if (file instanceof TFile) {
 					const entryIndex = this.settings.publishedFiles.findIndex(
-						(p) => p.path === oldPath
+						(p) => p.path === oldPath,
 					);
 					if (entryIndex !== -1 && this.settings.publishedFiles[entryIndex]) {
 						this.settings.publishedFiles[entryIndex].path = file.path;
 						void this.saveSettings();
 					}
 				}
-			})
+			}),
 		);
 
 		// Track Deletes
@@ -128,7 +211,7 @@ export default class S3PublishPlugin extends Plugin {
 			this.app.vault.on("delete", (file) => {
 				if (file instanceof TFile) {
 					const entryIndex = this.settings.publishedFiles.findIndex(
-						(p) => p.path === file.path
+						(p) => p.path === file.path,
 					);
 					if (entryIndex !== -1) {
 						// Remove from list to keep it clean, as user can't unpublish easily anymore if file is gone.
@@ -136,14 +219,14 @@ export default class S3PublishPlugin extends Plugin {
 						void this.saveSettings();
 					}
 				}
-			})
+			}),
 		);
 
 		// Layout Change Listener
 		this.registerEvent(
 			this.app.workspace.on("layout-change", () => {
 				this.updateFileMarkers();
-			})
+			}),
 		);
 
 		// Initial marker update
@@ -156,7 +239,7 @@ export default class S3PublishPlugin extends Plugin {
 
 	updateFileMarkers() {
 		const publishedPaths = new Set(
-			this.settings.publishedFiles.map((p) => p.path)
+			this.settings.publishedFiles.map((p) => p.path),
 		);
 
 		// Find all file explorer leaves
@@ -198,6 +281,54 @@ export default class S3PublishPlugin extends Plugin {
 		}
 	}
 
+	async publishNoteRecursively(file: TFile, visited: Set<string> = new Set()) {
+		if (visited.has(file.path)) return;
+		visited.add(file.path);
+
+		await this.publishNote(file, true);
+
+		// Find outgoing links
+		const cache = this.app.metadataCache.getFileCache(file);
+		if (!cache) return;
+
+		const linksToVisit: string[] = [];
+
+		if (cache.links) {
+			for (const link of cache.links) {
+				linksToVisit.push(link.link);
+			}
+		}
+
+		if (cache.embeds) {
+			for (const embed of cache.embeds) {
+				linksToVisit.push(embed.link);
+			}
+		}
+
+		// Frontmatter links (banner)
+		const banner = cache.frontmatter?.["banner"] as unknown;
+		if (typeof banner === "string") {
+			linksToVisit.push(banner.replace(/\[\[|\]\]/g, ""));
+		}
+
+		for (const linkPath of linksToVisit) {
+			const cleanPathParts = linkPath.split("#")[0];
+			const cleanPath = cleanPathParts
+				? cleanPathParts.split("?")[0]
+				: linkPath;
+
+			if (!cleanPath) continue;
+			const linkedFile = this.app.metadataCache.getFirstLinkpathDest(
+				cleanPath,
+				file.path,
+			);
+
+			if (linkedFile instanceof TFile && linkedFile.extension === "md") {
+				await this.publishNoteRecursively(linkedFile, visited);
+			}
+		}
+	}
+
 	async publishNote(file: TFile, updateBacklinks: boolean = true) {
 		new Notice(`Publishing ${file.basename}...`);
 		try {
@@ -215,7 +346,7 @@ export default class S3PublishPlugin extends Plugin {
 					// Parse Canvas JSON for assets
 					try {
 						const canvasData = JSON.parse(
-							await this.app.vault.read(f)
+							await this.app.vault.read(f),
 						) as CanvasData;
 						if (canvasData.nodes) {
 							for (const node of canvasData.nodes) {
@@ -223,7 +354,7 @@ export default class S3PublishPlugin extends Plugin {
 									const linkedFile =
 										this.app.metadataCache.getFirstLinkpathDest(
 											node.file,
-											f.path
+											f.path,
 										);
 									if (linkedFile instanceof TFile) {
 										if (linkedFile.extension === "md") {
@@ -240,7 +371,7 @@ export default class S3PublishPlugin extends Plugin {
 								if (node.background) {
 									const bgFile = this.app.metadataCache.getFirstLinkpathDest(
 										node.background as string,
-										f.path
+										f.path,
 									);
 									if (
 										bgFile instanceof TFile &&
@@ -266,7 +397,7 @@ export default class S3PublishPlugin extends Plugin {
 					const cleanPath = bannerPath.replace(/\[\[|\]\]/g, "");
 					const bannerFile = this.app.metadataCache.getFirstLinkpathDest(
 						cleanPath,
-						f.path
+						f.path,
 					);
 					if (
 						bannerFile instanceof TFile &&
@@ -284,7 +415,7 @@ export default class S3PublishPlugin extends Plugin {
 						const cleanLink = embed.link.split("#")[0] || embed.link;
 						const linkedFile = this.app.metadataCache.getFirstLinkpathDest(
 							cleanLink,
-							f.path
+							f.path,
 						);
 
 						if (linkedFile instanceof TFile) {
@@ -327,7 +458,7 @@ export default class S3PublishPlugin extends Plugin {
 
 							const linkedFile = this.app.metadataCache.getFirstLinkpathDest(
 								cleanLink,
-								f.path
+								f.path,
 							);
 
 							if (linkedFile instanceof TFile) {
@@ -357,7 +488,7 @@ export default class S3PublishPlugin extends Plugin {
 					const cleanPath = topLevelBannerPath.replace(/\[\[|\]\]/g, "");
 					const f = this.app.metadataCache.getFirstLinkpathDest(
 						cleanPath,
-						file.path
+						file.path,
 					);
 					if (f instanceof TFile) bannerFilename = f.name;
 				}
@@ -366,7 +497,7 @@ export default class S3PublishPlugin extends Plugin {
 			// 4. Generate HTML
 			let html = "";
 			const publishedPaths = new Set(
-				this.settings.publishedFiles.map((p) => p.path)
+				this.settings.publishedFiles.map((p) => p.path),
 			);
 
 			if (file.extension === "canvas") {
@@ -376,7 +507,7 @@ export default class S3PublishPlugin extends Plugin {
 					file,
 					content,
 					publishedPaths,
-					bannerFilename
+					bannerFilename,
 				);
 			}
 
@@ -416,12 +547,13 @@ export default class S3PublishPlugin extends Plugin {
 					}
 
 					if (file.extension === "md") {
-						await this.app.fileManager.processFrontMatter(file, (fm) => {
-							// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-							if (value === null) delete fm[key];
-							// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-							else fm[key] = value;
-						});
+						await this.app.fileManager.processFrontMatter(
+							file,
+							(fm: Record<string, unknown>) => {
+								if (value === null) delete fm[key];
+								else fm[key] = value;
+							},
+						);
 					} else if (file.extension === "canvas") {
 						// Manually update JSON
 						try {
@@ -436,14 +568,14 @@ export default class S3PublishPlugin extends Plugin {
 
 							await this.app.vault.modify(
 								file,
-								JSON.stringify(json, null, "\t")
+								JSON.stringify(json, null, "\t"),
 							);
 						} catch (e) {
 							console.error(`Failed to update canvas JSON for key ${key}`, e);
 							new Notice(`Warning: Could not save ${key} to canvas file.`);
 						}
 					}
-				}
+				},
 			);
 
 			// Post-publish: Update list.
@@ -459,7 +591,7 @@ export default class S3PublishPlugin extends Plugin {
 
 			if (finalShareId) {
 				const entryIndex = this.settings.publishedFiles.findIndex(
-					(p) => p.path === file.path
+					(p) => p.path === file.path,
 				);
 				const newEntry = { path: file.path, url: url, shareId: finalShareId };
 				if (entryIndex !== -1) {
@@ -489,7 +621,7 @@ export default class S3PublishPlugin extends Plugin {
 							) {
 								const refFile = this.app.metadataCache.getFirstLinkpathDest(
 									sourcePath,
-									""
+									"",
 								);
 								if (refFile instanceof TFile) {
 									new Notice(`Updating referring note: ${refFile.basename}`);
@@ -504,8 +636,74 @@ export default class S3PublishPlugin extends Plugin {
 		} catch (err) {
 			console.error(err);
 			new Notice(
-				`Error publishing: ${err instanceof Error ? err.message : String(err)}`
+				`Error publishing: ${err instanceof Error ? err.message : String(err)}`,
 			);
+		}
+	}
+
+	async unpublishNoteRecursively(
+		file: TFile,
+		visited: Set<string> = new Set(),
+	) {
+		if (visited.has(file.path)) return;
+		visited.add(file.path);
+
+		await this.unpublishNote(file);
+
+		// Find outgoing links to recurse
+		const cache = this.app.metadataCache.getFileCache(file);
+		if (!cache) return;
+
+		const linksToVisit: string[] = [];
+
+		if (cache.links) {
+			for (const link of cache.links) {
+				linksToVisit.push(link.link);
+			}
+		}
+
+		if (cache.embeds) {
+			for (const embed of cache.embeds) {
+				linksToVisit.push(embed.link);
+			}
+		}
+
+		// Frontmatter links (banner)
+		const banner = cache.frontmatter?.["banner"] as unknown;
+		if (typeof banner === "string") {
+			linksToVisit.push(banner.replace(/\[\[|\]\]/g, ""));
+		}
+
+		for (const linkPath of linksToVisit) {
+			const cleanPath = linkPath.split("#")[0]?.split("?")[0];
+			if (!cleanPath) continue;
+
+			const linkedFile = this.app.metadataCache.getFirstLinkpathDest(
+				cleanPath,
+				file.path,
+			);
+
+			if (linkedFile instanceof TFile) {
+				// Only recurse if the linked file is also published
+				// We need to check if it's in the published list OR if it has frontmatter indicating it's published.
+				// The publishedFiles list is the fastest check.
+				const isPublished = this.settings.publishedFiles.some(
+					(p) => p.path === linkedFile.path,
+				);
+
+				if (isPublished) {
+					if (linkedFile.extension === "md") {
+						await this.unpublishNoteRecursively(linkedFile, visited);
+					} else {
+						// For non-MD files (assets), unpublishNote might work IF they were treated as "notes" but usually assets are just deleted during unpublish of the note?
+						// Actually, unpublishNote is designed for TFile (MD/Canvas).
+						// Assets uploaded alongside a note are deleted when the note is unpublished if they are in the folder?
+						// Wait, current unpublish logic only deletes the 'share_id' folder.
+						// If assets are shared, this might be tricky.
+						// But for now, let's just trace MD files.
+					}
+				}
+			}
 		}
 	}
 
@@ -537,12 +735,13 @@ export default class S3PublishPlugin extends Plugin {
 
 			await this.publisher.unpublish(file, frontmatter, async (key, value) => {
 				if (file.extension === "md") {
-					await this.app.fileManager.processFrontMatter(file, (fm) => {
-						// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-						if (value === null) delete fm[key];
-						// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-						else fm[key] = value;
-					});
+					await this.app.fileManager.processFrontMatter(
+						file,
+						(fm: Record<string, unknown>) => {
+							if (value === null) delete fm[key];
+							else fm[key] = value;
+						},
+					);
 				} else if (file.extension === "canvas") {
 					// Canvas Fix
 					try {
@@ -565,7 +764,7 @@ export default class S3PublishPlugin extends Plugin {
 
 			// Remove from settings list
 			const entryIndex = this.settings.publishedFiles.findIndex(
-				(p) => p.path === file.path
+				(p) => p.path === file.path,
 			);
 			if (entryIndex !== -1) {
 				this.settings.publishedFiles.splice(entryIndex, 1);
@@ -579,7 +778,7 @@ export default class S3PublishPlugin extends Plugin {
 			new Notice(
 				`Error unpublishing: ${
 					err instanceof Error ? err.message : String(err)
-				}`
+				}`,
 			);
 		}
 	}
@@ -588,7 +787,7 @@ export default class S3PublishPlugin extends Plugin {
 		this.settings = Object.assign(
 			{},
 			DEFAULT_SETTINGS,
-			(await this.loadData()) as S3PublisherSettings
+			(await this.loadData()) as S3PublisherSettings,
 		);
 
 		// Overlay SecretStorage if available
@@ -608,7 +807,7 @@ export default class S3PublishPlugin extends Plugin {
 			if (this.settings.s3AccessKey) {
 				await this.secretsWrapper.saveSecret(
 					"s3-access-key",
-					this.settings.s3AccessKey
+					this.settings.s3AccessKey,
 				);
 			} else {
 				await this.secretsWrapper.deleteSecret("s3-access-key");
@@ -617,7 +816,7 @@ export default class S3PublishPlugin extends Plugin {
 			if (this.settings.s3SecretKey) {
 				await this.secretsWrapper.saveSecret(
 					"s3-secret-key",
-					this.settings.s3SecretKey
+					this.settings.s3SecretKey,
 				);
 			} else {
 				await this.secretsWrapper.deleteSecret("s3-secret-key");

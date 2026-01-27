@@ -16,12 +16,66 @@ import { generateInteractiveExcalidrawWrapper } from "./interactive-excalidraw";
 import {
 	CSS_VARIABLES,
 	MARKDOWN_STYLES,
+	PREVIEW_STYLES,
 	SYNTAX_HIGHLIGHTING_STYLES,
 	TOC_STYLES,
 } from "./styles";
 
 import rehypeSlug from "rehype-slug";
 import { linkToIframe } from "link-to-iframe";
+
+interface UnistNode {
+	type: string;
+	children?: UnistNode[];
+	value?: unknown;
+	[key: string]: unknown;
+}
+
+interface ListNode extends UnistNode {
+	type: "list";
+	ordered?: boolean;
+	start?: number;
+	spread?: boolean;
+	children: ListItemNode[];
+}
+
+interface ListItemNode extends UnistNode {
+	type: "listItem";
+	checked?: boolean | null;
+	children: UnistNode[];
+}
+
+interface CodeNode extends UnistNode {
+	type: "code";
+	lang?: string;
+	value: string;
+}
+
+interface ExcalidrawElement {
+	type: string;
+	fileId?: string;
+	[key: string]: unknown;
+}
+
+interface ExcalidrawFile {
+	id: string;
+	mimeType?: string;
+	dataURL?: string;
+	created?: number;
+	lastRetrieved?: number;
+	[key: string]: unknown;
+}
+
+interface ExcalidrawJson {
+	elements?: ExcalidrawElement[];
+	appState?: {
+		exportBackground?: boolean;
+		viewBackgroundColor?: string;
+		[key: string]: unknown;
+	};
+	files?: Record<string, ExcalidrawFile>;
+	[key: string]: unknown;
+}
 
 export class MarkdownCompiler {
 	app: App;
@@ -75,8 +129,7 @@ export class MarkdownCompiler {
 
 			if (!decompressed) throw new Error("Decompression failed");
 
-			/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any */
-			const json: any = JSON.parse(decompressed);
+			const json = JSON.parse(decompressed) as ExcalidrawJson;
 
 			// Hydrate images
 			await hydrateExcalidrawFiles(this.app, json, content);
@@ -89,9 +142,9 @@ export class MarkdownCompiler {
 					exportBackground: false,
 					viewBackgroundColor: "transparent",
 				},
-				files: json.files || null,
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				files: (json.files as any) || null,
 			});
-			/* eslint-enable */
 
 			// Determine bounds from SVG viewBox or attributes
 			const validSvg = svg;
@@ -166,34 +219,25 @@ export class MarkdownCompiler {
 
 		const processor = unified()
 			.use(remarkParse)
-			// @ts-ignore
 			.use(remarkGfm)
-			// @ts-ignore
 			.use(remarkBreaks)
-			// @ts-ignore
 			.use(remarkSplitTaskList)
-			// @ts-ignore
 			.use(remarkForceListBreaks)
 
 			.use(remarkExcalidraw, { app: this.app })
 			.use(remarkRelativeLinkNormalizer)
 			// Switch to remark-rehype -> rehype-raw -> rehype-stringify for HTML handling
-			// @ts-ignore
-			.use(remarkRehype, { allowDangerousHtml: true })
-			// @ts-ignore
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument
+			.use(remarkRehype as any, { allowDangerousHtml: true })
 			.use(rehypeRaw)
-			// @ts-ignore
 			.use(rehypeHighlight)
-			// @ts-ignore
-			.use(rehypeCodeBlockEnhancer)
-			// @ts-ignore
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument
+			.use(rehypeCodeBlockEnhancer as any)
 			.use(rehypeSlug)
-			// @ts-ignore
-			.use(rehypeIframeEnhancer)
-			// @ts-ignore
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument
+			.use(rehypeIframeEnhancer as any)
 			.use(rehypeStringify, { allowDangerousHtml: true });
 
-		// @ts-ignore
 		const vfile = await processor.process(content);
 		return String(vfile);
 	}
@@ -542,6 +586,7 @@ export class MarkdownCompiler {
     <style>
         ${CSS_VARIABLES}
         ${MARKDOWN_STYLES}
+        ${PREVIEW_STYLES}
         ${SYNTAX_HIGHLIGHTING_STYLES}
         ${TOC_STYLES}
     </style>
@@ -554,7 +599,7 @@ export class MarkdownCompiler {
     ${body}
     </div>
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
+        const init = () => {
             document.querySelectorAll('.copy-button').forEach(button => {
                 button.addEventListener('click', () => {
                     const wrapper = button.closest('.code-block-wrapper');
@@ -574,6 +619,136 @@ export class MarkdownCompiler {
                             button.textContent = 'Error';
                         });
                     }
+                });
+            });
+
+            // Link Preview Logic
+            let popover = null;
+            let timer = null;
+
+            const createPopover = () => {
+                if (!popover) {
+                    console.log('Creating popover');
+                    popover = document.createElement('div');
+                    popover.className = 'popover';
+                    popover.innerHTML = '<div class="popover-content">Loading...</div>';
+                    document.body.appendChild(popover);
+                    
+                    popover.addEventListener('mouseenter', () => {
+                        if (timer) clearTimeout(timer);
+                    });
+                    popover.addEventListener('mouseleave', () => {
+                        hidePopover();
+                    });
+                }
+            };
+
+            const showPopover = (url, rect) => {
+                createPopover();
+                if (timer) clearTimeout(timer);
+                
+                // Reset Content
+                const popoverContent = popover.querySelector('.popover-content');
+                popoverContent.innerHTML = '<div class="loading-spinner">Loading...</div>';
+                
+                popover.classList.add('visible');
+                // console.log('Showing popover for:', url);
+                
+                // Smart Positioning
+                const viewportHeight = window.innerHeight;
+                const spaceBelow = viewportHeight - rect.bottom;
+                const spaceAbove = rect.top;
+                const minHeight = 100; // Assume minimum height for loading state
+                const maxHeight = 300; // Matches CSS max-height
+                
+                // Default to below
+                let top = rect.bottom + window.scrollY + 10;
+                let left = rect.left + window.scrollX;
+                
+                // If not enough space below AND more space above, flip it
+                // We use a threshold of maxHeight to decide if we *should* flip.
+                // If spaceBelow < 300px, we risk overflow/scroll.
+                if (spaceBelow < maxHeight && spaceAbove > spaceBelow) {
+                     // Position above
+                     // We need to know the height of the popover to position it correctly "above"
+                     // Since content is loading, we might need to adjust this after load.
+                     // For now, let's position it assuming it might grow upwards? 
+                     // Absolute positioning "bottom" relative to document is hard.
+                     // Instead, we can set 'bottom' style if we calculate from document height, but that's messy.
+                     // Easier: Set it above, and once loaded, re-calculate? 
+                     // Or, just set the initial top to be safe.
+                     
+                     // Issue: If we set top based on offsetHeight before content loads, it will be wrong.
+                     // Fix: render completely invisible first, or use a fixed alignment.
+                     
+                     // Let's try this: Position it securely above the link.
+                     // We can use transform: translateY(-100%) trick if we position it at rect.top!
+                     
+                     top = rect.top + window.scrollY - 10;
+                     popover.style.transformOrigin = 'bottom left';
+                     // We adding a class to handle the translation in CSS or inline style
+                     popover.style.transform = 'translateY(-100%)';
+                } else {
+                    // Reset transform if we reused the element
+                    popover.style.transform = 'none';
+                    popover.style.transformOrigin = 'top left';
+                }
+                
+                // Horizontal clamping
+                const viewportWidth = window.innerWidth;
+                if (left + 400 > viewportWidth) { // 400 is CSS width
+                    left = viewportWidth - 410; // 10px padding
+                }
+                if (left < 10) left = 10;
+                
+                popover.style.top = top + 'px';
+                popover.style.left = left + 'px';
+                
+                // Fetch content
+                fetch(url)
+                    .then(response => {
+                        if (!response.ok) throw new Error('Network response was not ok');
+                        return response.text();
+                    })
+                    .then(html => {
+                        const parser = new DOMParser();
+                        const doc = parser.parseFromString(html, 'text/html');
+                        const content = doc.querySelector('.markdown-preview-view');
+                        if (content) {
+                            popoverContent.innerHTML = '';
+                            popoverContent.appendChild(content.cloneNode(true));
+                            
+                            // Re-calculate position if we are in "above" mode (transform is applied)
+                            // Actually, translateY(-100%) handles the height dynamic change automatically!
+                            // If the height grows, it grows "upwards" visually because the anchor point (top) is fixed and we translate -100%.
+                            // So this should just work.
+                        } else {
+                            popoverContent.innerHTML = 'No preview available.';
+                        }
+                    })
+                    .catch(err => {
+                         console.error('Preview fetch error:', err);
+                         popoverContent.innerText = 'Failed to load preview: ' + err.message;
+                    });
+            };
+
+            const hidePopover = () => {
+                timer = setTimeout(() => {
+                    if (popover) popover.classList.remove('visible');
+                }, 300);
+            };
+
+            document.querySelectorAll('a.internal-link').forEach(link => {
+                link.addEventListener('mouseenter', (e) => {
+                    const url = link.getAttribute('href');
+                    console.log('Mouse enter link:', url);
+                    if (url && !url.startsWith('#') && !link.classList.contains('is-unresolved')) {
+                         showPopover(url, link.getBoundingClientRect());
+                    }
+                });
+                
+                link.addEventListener('mouseleave', () => {
+                    hidePopover();
                 });
             });
 
@@ -634,7 +809,13 @@ export class MarkdownCompiler {
                    }
                 });
             });
-        });
+        };
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
     </script>
 </body>
 </html>`;
@@ -670,14 +851,14 @@ export class MarkdownCompiler {
 }
 
 function remarkForceListBreaks() {
-	/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment */
-	return (tree: any) => {
-		visit(tree, "listItem", (node: any) => {
+	return (tree: UnistNode) => {
+		visit(tree, "listItem", (node: ListItemNode) => {
 			if (!node.children || node.children.length < 2) return;
 
 			const newChildren = [];
 			for (let i = 0; i < node.children.length; i++) {
 				const child = node.children[i];
+				if (!child) continue;
 				newChildren.push(child);
 
 				if (i < node.children.length - 1) {
@@ -686,6 +867,7 @@ function remarkForceListBreaks() {
 					// Inject a <br> to force a visual line break
 					// The AST analysis showed the text is often wrapped in a paragraph node
 					if (
+						next &&
 						(child.type === "text" || child.type === "paragraph") &&
 						next.type === "html"
 					) {
@@ -696,20 +878,20 @@ function remarkForceListBreaks() {
 			node.children = newChildren;
 		});
 	};
-	/* eslint-enable */
 }
 
 function remarkSplitTaskList() {
-	/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment */
-	return (tree: any) => {
-		visit(tree, "list", (node: any, index: number, parent: any) => {
+	return (tree: UnistNode) => {
+		visit(tree, "list", (node: ListNode, index: number, parent: UnistNode) => {
 			if (!parent || !node.children || node.children.length === 0) return;
 
-			const newLists: any[] = [];
-			let currentListItems: any[] = [];
+			const newLists: ListNode[] = [];
+			let currentListItems: ListItemNode[] = [];
+			const firstChild = node.children[0];
+			if (!firstChild) return;
+
 			let currentIsTask =
-				node.children[0].checked !== null &&
-				node.children[0].checked !== undefined;
+				firstChild.checked !== null && firstChild.checked !== undefined;
 
 			for (const child of node.children) {
 				const isTask = child.checked !== null && child.checked !== undefined;
@@ -741,26 +923,27 @@ function remarkSplitTaskList() {
 			}
 
 			if (newLists.length > 1) {
-				parent.children.splice(index, 1, ...newLists);
-				return index + newLists.length; // Skip the new nodes
+				if (parent.children && typeof index === "number") {
+					parent.children.splice(index, 1, ...newLists);
+					return index + newLists.length; // Skip the new nodes
+				}
 			}
 			return;
 		});
 	};
-	/* eslint-enable */
 }
 
 function remarkExcalidraw(options: { app: App }) {
-	/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-call */
-	return async (tree: any, file: any) => {
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	return async (tree: UnistNode, file: any) => {
 		let svgHtml = "";
 
 		// First, find the Excalidraw block
-		visit(tree, "code", (node: any, index: number, parent: any) => {
+		visit(tree, "code", (node: CodeNode) => {
 			if (node.lang === "compressed-json" && !svgHtml) {
 				try {
 					const decompressed = LZString.decompressFromBase64(
-						node.value.replace(/\s/g, "") as string,
+						node.value.replace(/\s/g, ""),
 					);
 
 					if (decompressed) {
@@ -773,12 +956,11 @@ function remarkExcalidraw(options: { app: App }) {
 		});
 
 		if (svgHtml) {
-			/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
-			const json = JSON.parse(svgHtml);
+			const json = JSON.parse(svgHtml) as ExcalidrawJson;
 
 			// Hydrate images
 			if (options && options.app && file) {
-				const content = file.toString();
+				const content = String(file);
 				await hydrateExcalidrawFiles(options.app, json, content);
 			}
 
@@ -826,7 +1008,6 @@ function remarkExcalidraw(options: { app: App }) {
 			);
 
 			// Replace contents
-			// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
 			tree.children = [
 				{
 					type: "html",
@@ -837,8 +1018,11 @@ function remarkExcalidraw(options: { app: App }) {
 	};
 }
 
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment */
-async function hydrateExcalidrawFiles(app: App, json: any, markdown: string) {
+async function hydrateExcalidrawFiles(
+	app: App,
+	json: ExcalidrawJson,
+	markdown: string,
+) {
 	// Parse '## Embedded Files' section
 	const embeddedFilesRegex = /^([a-f0-9]{20,40}):\s*\[\[(.*?)\]\]/gm;
 	let match;
@@ -871,54 +1055,56 @@ async function hydrateExcalidrawFiles(app: App, json: any, markdown: string) {
 	}
 
 	// 2. Iterate over json.files to hydrate
-	for (const fileId in json.files) {
-		const fileData = json.files[fileId];
-		if (!fileData) continue;
+	if (json.files) {
+		for (const fileId in json.files) {
+			const fileData = json.files[fileId];
+			if (!fileData) continue;
 
-		// If dataURL is missing or empty, try to resolve it
-		if (!fileData.dataURL) {
-			const linkText = fileMap.get(fileId);
-			if (linkText) {
-				// Resolve file
-				const cleanLink = linkText.split("|")[0]; // Remove alias if any
-				if (cleanLink) {
-					const file = app.metadataCache.getFirstLinkpathDest(cleanLink, "");
-					if (file instanceof TFile) {
-						try {
-							const arrayBuffer = await app.vault.readBinary(file);
-							const base64 = arrayBufferToBase64(arrayBuffer);
+			// If dataURL is missing or empty, try to resolve it
+			if (!fileData.dataURL) {
+				const linkText = fileMap.get(fileId);
+				if (linkText) {
+					// Resolve file
+					const cleanLink = linkText.split("|")[0]; // Remove alias if any
+					if (cleanLink) {
+						const file = app.metadataCache.getFirstLinkpathDest(cleanLink, "");
+						if (file instanceof TFile) {
+							try {
+								const arrayBuffer = await app.vault.readBinary(file);
+								const base64 = arrayBufferToBase64(arrayBuffer);
 
-							// Guess Mime Type if missing
-							if (!fileData.mimeType) {
-								const ext = file.extension.toLowerCase();
-								switch (ext) {
-									case "png":
-										fileData.mimeType = "image/png";
-										break;
-									case "jpg":
-									case "jpeg":
-										fileData.mimeType = "image/jpeg";
-										break;
-									case "svg":
-										fileData.mimeType = "image/svg+xml";
-										break;
-									case "gif":
-										fileData.mimeType = "image/gif";
-										break;
-									case "webp":
-										fileData.mimeType = "image/webp";
-										break;
-									default:
-										fileData.mimeType = "application/octet-stream";
+								// Guess Mime Type if missing
+								if (!fileData.mimeType) {
+									const ext = file.extension.toLowerCase();
+									switch (ext) {
+										case "png":
+											fileData.mimeType = "image/png";
+											break;
+										case "jpg":
+										case "jpeg":
+											fileData.mimeType = "image/jpeg";
+											break;
+										case "svg":
+											fileData.mimeType = "image/svg+xml";
+											break;
+										case "gif":
+											fileData.mimeType = "image/gif";
+											break;
+										case "webp":
+											fileData.mimeType = "image/webp";
+											break;
+										default:
+											fileData.mimeType = "application/octet-stream";
+									}
 								}
-							}
 
-							fileData.dataURL = `data:${fileData.mimeType};base64,${base64}`;
-						} catch (e) {
-							console.error(
-								`Failed to read embedded excalidraw file ${cleanLink}`,
-								e,
-							);
+								fileData.dataURL = `data:${fileData.mimeType};base64,${base64}`;
+							} catch (e) {
+								console.error(
+									`Failed to read embedded excalidraw file ${cleanLink}`,
+									e,
+								);
+							}
 						}
 					}
 				}
@@ -936,7 +1122,6 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
 	}
 	return window.btoa(binary);
 }
-/* eslint-enable */
 
 function rehypeCodeBlockEnhancer() {
 	/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call */

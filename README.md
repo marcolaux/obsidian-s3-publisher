@@ -23,7 +23,9 @@ Publish your Obsidian notes, Canvas files, and Excalidraw drawings as beautiful,
   - **Dark Mode**: Respects system preferences for light/dark themes natively via CSS variables.
 - **🔐 Private Link Generation**: Generates obfuscated UUID paths (e.g., `.../share_id/index.html`) for secure sharing.
 - **🔒 Secure Credentials**: Uses Obsidian's native, encrypted `SecretStorage` wrapper to keep your API Access and Secret keys safe from plain-text exposure in `data.json`.
-- **🌳 Recursive Publishing**: Publish a note alongside all of its outgoing/incoming links and embeds at once. Can symmetrically unpublish dependencies as well.
+- **🌳 Deep Recursive Publishing & Embeds**: Publish a note alongside all of its outgoing/incoming links and embedded content at once. Can symmetrically unpublish dependencies as well.
+  - **Seamless Nesting**: Embed Excalidraw drawings and infinite Canvas files directly inside your Markdown format, or place Markdown notes and images inside a Canvas—everything renders interactively and perfectly!
+  - **Universal Dark/Light Mode**: No matter how deeply you nest your files, every embedded component (Canvas, Excalidraw, Markdown) natively supports and dynamically switches between light and dark modes based on system preferences.
 
 ## Screenshots
 

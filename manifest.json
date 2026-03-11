@@ -1,0 +1,11 @@
+{
+	"id": "obsidian-s3-publisher",
+	"name": "S3 Publisher",
+	"version": "1.6.1",
+	"minAppVersion": "0.15.0",
+	"description": "Publish notes to S3-compatible storage with private links.",
+	"author": "Marco Laux",
+	"authorUrl": "https://laux.wtf",
+	"fundingUrl": "https://www.paypal.com/paypalme/Kassettendeck",
+	"isDesktopOnly": false
+}

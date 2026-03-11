@@ -1,0 +1,38 @@
+stages:
+  - build
+  - release
+
+build:
+  stage: build
+  image: node:latest
+  script:
+    - npm install
+    - npm run build
+  artifacts:
+    paths:
+      - main.js
+      - manifest.json
+      - styles.css
+  only:
+    - master
+
+release:
+  stage: release
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  script:
+    - echo "Creating release..."
+    - |
+      VERSION=$(grep '"version":' manifest.json | head -1 | awk -F: '{ print $2 }' | sed 's/[",]//g' | tr -d '[[:space:]]')
+      echo "Detected Version: $VERSION"
+    - |
+      release-cli create --name "Release $VERSION" --description "Automatic release for version $VERSION" --tag-name "$VERSION" --ref "$CI_COMMIT_SHA" --assets-link "{\"name\":\"main.js\",\"url\":\"${CI_PROJECT_URL}/-/jobs/${CI_JOB_ID}/artifacts/raw/main.js\"}" --assets-link "{\"name\":\"manifest.json\",\"url\":\"${CI_PROJECT_URL}/-/jobs/${CI_JOB_ID}/artifacts/raw/manifest.json\"}" --assets-link "{\"name\":\"styles.css\",\"url\":\"${CI_PROJECT_URL}/-/jobs/${CI_JOB_ID}/artifacts/raw/styles.css\"}"
+  artifacts:
+    paths:
+      - main.js
+      - manifest.json
+      - styles.css
+  needs:
+    - job: build
+      artifacts: true
+  only:
+    - master

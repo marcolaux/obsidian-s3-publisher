@@ -2,6 +2,8 @@
 
 Publish your Obsidian notes, Canvas files, and Excalidraw drawings as beautiful, static HTML to any S3-compatible object storage (MinIO, AWS S3, DigitalOcean Spaces, Cloudflare R2).
 
+If you are on Github right now, this is a mirror of https://gitlab.com/marcaux/obsidian-s3-publisher. Please go there to file issues or contribute.
+
 ## Features
 
 - **🌐 Universal S3 Support**: Works with AWS S3, MinIO, Cloudflare R2, DigitalOcean Spaces, and more.

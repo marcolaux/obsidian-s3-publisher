@@ -16,6 +16,7 @@ import {
 	PREVIEW_STYLES,
 	SYNTAX_HIGHLIGHTING_STYLES,
 	TOC_STYLES,
+	EXCALIDRAW_STYLES,
 } from "../styles";
 
 import rehypeSlug from "rehype-slug";
@@ -89,12 +90,15 @@ export class MarkdownCompiler implements CompilerModule {
 		// Strip Frontmatter (Robust Regex for CRLF and whitespace)
 		content = content.replace(/^---\s*[\r\n]+[\s\S]*?[\r\n]+---\s*[\r\n]*/, "");
 
+		const embedHtmlMap = new Map<string, string>();
+
 		// Pre-process Obsidian Embeds (Async)
 		content = await this.transformEmbeds(
 			content,
 			file.path,
 			publishedPaths,
 			depth,
+			embedHtmlMap
 		);
 
 		// Pre-process Javascript/External Embeds (e.g. YouTube ![])
@@ -126,7 +130,14 @@ export class MarkdownCompiler implements CompilerModule {
 			.use(rehypeStringify, { allowDangerousHtml: true });
 
 		const vfile = await processor.process(content);
-		return String(vfile);
+		let finalOutput = String(vfile);
+
+		// Restore embeds
+		embedHtmlMap.forEach((html, placeholder) => {
+			finalOutput = finalOutput.split(placeholder).join(html);
+		});
+
+		return finalOutput;
 	}
 
 	async transformEmbeds(
@@ -134,6 +145,7 @@ export class MarkdownCompiler implements CompilerModule {
 		sourcePath: string,
 		publishedPaths: Set<string>,
 		depth: number,
+		embedHtmlMap?: Map<string, string>,
 	): Promise<string> {
 		// Regex to find ![[filename.ext]] or ![[filename.ext|alt]]
 		const embedRegex = /!\[\[(.*?)(?:\|(.*?))?\]\]/g;
@@ -169,16 +181,19 @@ export class MarkdownCompiler implements CompilerModule {
 					const subContent = await this.app.vault.read(linkedFile);
 					const subHtml = await compiler.compileEmbed(linkedFile, subContent, publishedPaths, depth + 1);
 
+					let finalHtml = "";
 					if (compiler.id === "excalidraw" || compiler.id === "canvas") {
-						replacements.set(
-							originalTag,
-							`<div class="embedded-${linkedFile.extension}">${subHtml}</div>`,
-						);
+						finalHtml = `<div class="embedded-${linkedFile.extension}">${subHtml}</div>`;
 					} else {
-						replacements.set(
-							originalTag,
-							`<div class="embedded-note-container"><h3>${linkedFile.basename}</h3>${subHtml}</div>`,
-						);
+						finalHtml = `<div class="embedded-note-container"><h3>${linkedFile.basename}</h3>${subHtml}</div>`;
+					}
+
+					if (embedHtmlMap) {
+						const placeholder = `<div id="embed-placeholder-${Math.random().toString(36).substring(2, 10)}"></div>`;
+						embedHtmlMap.set(placeholder, finalHtml);
+						replacements.set(originalTag, placeholder);
+					} else {
+						replacements.set(originalTag, finalHtml);
 					}
 				} else {
 					// Asset (Image/Video/PDF/etc)
@@ -459,6 +474,7 @@ export class MarkdownCompiler implements CompilerModule {
     <style>
         ${CSS_VARIABLES}
         ${MARKDOWN_STYLES}
+        ${EXCALIDRAW_STYLES}
         ${PREVIEW_STYLES}
         ${SYNTAX_HIGHLIGHTING_STYLES}
         ${TOC_STYLES}

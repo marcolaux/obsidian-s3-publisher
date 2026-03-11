@@ -4,9 +4,21 @@ import { generateInteractiveWrapper } from "../components/interactive-viewer";
 
 interface ExcalidrawAutomate {
 	createSVG(
-		path: string,
-		b: boolean,
-		opts: Record<string, unknown>,
+		templatePath: string | undefined,
+		embedFont: boolean,
+		exportSettings: Record<string, unknown>,
+		loader: unknown,
+		forceTheme: string,
+		canvasTheme?: string,
+		canvasBackgroundColor?: string,
+		automateElements?: unknown[],
+		plugin?: unknown,
+		depth?: number,
+		padding?: number,
+		imagesDict?: unknown,
+		convertMarkdownLinksToObsidianURLs?: boolean,
+		includeInternalLinks?: boolean,
+		overrideFiles?: Record<string, unknown>,
 	): Promise<Element | null>;
 }
 
@@ -52,16 +64,34 @@ export class ExcalidrawCompiler implements CompilerModule {
 		}
 
 		try {
-			const svg = await ea.createSVG(file.path, true, {
-				withBackground: false,
-				withTheme: false,
-			});
-			if (!svg) throw new Error("Could not generate SVG from Excalidraw api");
+			// Generate Light Mode SVG
+			const svgLight = await ea.createSVG(
+				file.path,
+				true,
+				{
+					withBackground: false,
+					withTheme: true,
+				},
+				undefined,
+				"light"
+			);
+			if (!svgLight) throw new Error("Could not generate light SVG from Excalidraw api");
 
-			const svgString = svg.outerHTML;
+			// Generate Dark Mode SVG
+			const svgDark = await ea.createSVG(
+				file.path,
+				true,
+				{
+					withBackground: false,
+					withTheme: true,
+				},
+				undefined,
+				"dark"
+			);
+			if (!svgDark) throw new Error("Could not generate dark SVG from Excalidraw api");
 
-			// Determine bounds from SVG viewBox or attributes
-			const validSvg = svg;
+			// Determine bounds from SVG viewBox or attributes (using light SVG as reference)
+			const validSvg = svgLight;
 			let width = 1000;
 			let height = 1000;
 
@@ -84,10 +114,18 @@ export class ExcalidrawCompiler implements CompilerModule {
 			// Generate stable or unique ID based on embed status
 			const id = isEmbed ? Math.random().toString(36).substring(2, 10) : "fullpage";
 
+			// Combine SVGs into a theme wrapper
+			const combinedSvgHtml = `
+				<div class="excalidraw-theme-wrapper">
+					<div class="excalidraw-svg-light">${svgLight.outerHTML}</div>
+					<div class="excalidraw-svg-dark">${svgDark.outerHTML}</div>
+				</div>
+			`;
+
 			// Return Interactive Shell
 			return generateInteractiveWrapper({
 				id,
-				content: svgString,
+				content: combinedSvgHtml,
 				width,
 				height,
 				isEmbed,

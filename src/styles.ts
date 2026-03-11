@@ -613,12 +613,14 @@ export const EXCALIDRAW_STYLES = `
     ${EXCALIDRAW_VARS_LIGHT}
 }
 
-/* Apply the filter to the SVG */
 .excalidraw svg {
-  filter: var(--theme-filter);
   width: 100%;
   height: 100%;
 }
+
+/* Dual SVG Theme Toggling */
+.excalidraw-svg-dark { display: none; }
+.excalidraw-svg-light { display: block; }
 
 @media screen and (min-device-width: 1921px) {
   .excalidraw {
@@ -639,12 +641,18 @@ export const EXCALIDRAW_STYLES = `
   .excalidraw {
     ${EXCALIDRAW_VARS_DARK}
   }
+  
+  .excalidraw-svg-light { display: none; }
+  .excalidraw-svg-dark { display: block; }
 }
 
 /* Replicate for Class-based Dark Mode */
 .theme-dark .excalidraw, .theme--dark .excalidraw {
     ${EXCALIDRAW_VARS_DARK}
 }
+
+.theme-dark .excalidraw-svg-light, .theme--dark .excalidraw-svg-light { display: none; }
+.theme-dark .excalidraw-svg-dark, .theme--dark .excalidraw-svg-dark { display: block; }
 `;
 
 export const PREVIEW_STYLES = `

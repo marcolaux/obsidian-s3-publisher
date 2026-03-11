@@ -31,19 +31,22 @@ Publish your Obsidian notes, Canvas files, and Excalidraw drawings as beautiful,
 
 _A complex Obsidian Canvas rendered with full interactivity and styling._
 
-<!-- Add screenshot of published canvas here -->
+![Published Canvas - Light Mode](screenshots/canvas-light.png)
+![Published Canvas - Dark Mode](screenshots/canvas-dark.png)
 
 ### 2. Interactive Excalidraw Embed
 
 _Excalidraw drawings embedded in notes retain full pan/zoom capabilities w/ responsive scaling._
 
-<!-- Add screenshot of excalidraw here -->
+![Interactive Excalidraw Embed - Light Mode](screenshots/excalidraw-light.png)
+![Interactive Excalidraw Embed - Dark Mode](screenshots/excalidraw-dark.png)
 
 ### 3. Published Note
 
 _Clean, readable Markdown rendering complete with Table of Contents, Code highlighting, and Dark Mode._
 
-<!-- Add screenshot of published note here -->
+![Published Note - Light Mode](screenshots/markdown-light.png)
+![Published Note - Dark Mode](screenshots/markdown-dark.png)
 
 ## Installation
 

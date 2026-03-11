@@ -14,7 +14,7 @@ build:
       - manifest.json
       - styles.css
   only:
-    - master
+    - main
 
 release:
   stage: release
@@ -35,4 +35,4 @@ release:
     - job: build
       artifacts: true
   only:
-    - master
+    - main
